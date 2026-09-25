@@ -390,14 +390,14 @@ elif st.session_state.current_page == "LecturerDashboard":
         lecturer_lab = st.selectbox(
             "Select Laboratory / Classroom Location",
             [
-                "ccna 1",
-                "ccna 2",
-                "cnl 1",
-                "cnl 2",
-                "it 1",
-                "it 2",
-                "apdv 1",
-                "apdv 2",
+                "CCNA 1",
+                "CCNA 2",
+                "CNL 1",
+                "CNL 2",
+                "IT 1",
+                "IT 2",
+                "APDV 1",
+                "APDV 2",
                 "LL1",
                 "LL2",
                 "DKU",
@@ -436,7 +436,6 @@ elif st.session_state.current_page == "LecturerDashboard":
                 )
                 st.rerun()
 
-        # Custom column ratios to keep buttons placed side by side closely
         col_btn1, col_btn2, col_spacer = st.columns([1.1, 1.2, 2.0])
         with col_btn1:
             refresh_btn = st.form_submit_button("Refresh Attendance Table")
@@ -462,65 +461,41 @@ elif st.session_state.current_page == "LecturerDashboard":
             value=mc_count,
         )
 
-        st.markdown("<br/>", unsafe_allow_html=True)
+        # PREVIOUS TABLE DISPLAY RESTORED
+        df = pd.DataFrame(attendance_list)
+        display_columns = ["Timestamp", "Name", "Matrix", "Subject", "Lab", "Status", "File Name"]
+        existing_cols = [c for c in display_columns if c in df.columns]
+        st.dataframe(df[existing_cols], use_container_width=True)
 
-        # Single Integrated Interactive Attendance Table
-        t_header = st.columns([1.5, 1.5, 1.2, 1.6, 1.0, 1.0, 0.8])
-        headers = [
-            "Timestamp (MYT)",
-            "Name",
-            "Matrix",
-            "Status",
-            "Photo",
-            "Document",
-            "Action",
-        ]
-        for idx, head in enumerate(headers):
-            t_header[idx].markdown(f"**{head}**")
-
-        st.markdown("---")
-
+        st.markdown("### Attachment & Verification Actions")
+        
         records_to_delete = []
 
         for idx, rec in enumerate(attendance_list):
-            row_cols = st.columns([1.5, 1.5, 1.2, 1.6, 1.0, 1.0, 0.8])
+            col_info, col_img, col_doc, col_del = st.columns([3, 1.2, 1.2, 1.2])
             
-            row_cols[0].write(rec.get("Timestamp", ""))
-            row_cols[1].write(rec.get("Name", ""))
-            row_cols[2].write(rec.get("Matrix", ""))
+            with col_info:
+                st.write(f"**{idx + 1}. {rec.get('Name')}** ({rec.get('Matrix')}) - *{rec.get('Status')}*")
+            
+            with col_img:
+                if rec.get("image_bytes"):
+                    if st.button("View Photo", key=f"img_btn_{idx}"):
+                        st.session_state.selected_image_record = rec
+                        st.rerun()
+                else:
+                    st.caption("No Photo")
 
-            # Color-coded Status Display
-            status_str = str(rec.get("Status", ""))
-            if "Present" in status_str:
-                row_cols[3].markdown(
-                    f"<div style='background-color: #d4edda; color: #155724; padding: 4px 8px; border-radius: 4px; font-weight: bold;'>{status_str}</div>",
-                    unsafe_allow_html=True,
-                )
-            else:
-                row_cols[3].markdown(
-                    f"<div style='background-color: #f8d7da; color: #721c24; padding: 4px 8px; border-radius: 4px; font-weight: bold;'>{status_str}</div>",
-                    unsafe_allow_html=True,
-                )
+            with col_doc:
+                if rec.get("doc_bytes"):
+                    if st.button("View Doc", key=f"doc_btn_{idx}"):
+                        st.session_state.selected_doc_record = rec
+                        st.rerun()
+                else:
+                    st.caption("No Doc")
 
-            # Camera Facial Photo Viewer Button
-            if rec.get("image_bytes"):
-                if row_cols[4].button("View", key=f"img_btn_{idx}"):
-                    st.session_state.selected_image_record = rec
-                    st.rerun()
-            else:
-                row_cols[4].write("N/A")
-
-            # Document / MC Attachment Viewer Button
-            if rec.get("doc_bytes"):
-                if row_cols[5].button("View Doc", key=f"doc_btn_{idx}"):
-                    st.session_state.selected_doc_record = rec
-                    st.rerun()
-            else:
-                row_cols[5].write("None")
-
-            # Remove Record Button
-            if row_cols[6].button("Remove", key=f"del_btn_{idx}"):
-                records_to_delete.append(idx)
+            with col_del:
+                if st.button("Remove", key=f"del_btn_{idx}"):
+                    records_to_delete.append(idx)
 
         if records_to_delete:
             for d_idx in sorted(records_to_delete, reverse=True):
@@ -670,7 +645,6 @@ elif st.session_state.current_page == "StudentDashboard":
 
                             img_bytes = camera_photo.getvalue()
 
-                            # STRICT FACIAL VERIFICATION CHECK
                             face_detected = detect_face_in_image(img_bytes)
                             if not face_detected:
                                 st.error(
