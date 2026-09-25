@@ -28,7 +28,13 @@ class AttendanceSystemState:
         self.lecturer_lat = None
         self.lecturer_lon = None
         self.attendance_db = []
-        self.submitted_students = set()  # Tracks matrix numbers submitted in the active session
+        self.submitted_students = set()
+
+    def get_submitted_students(self):
+        """Safely retrieve or initialize submitted_students for cached instances."""
+        if not hasattr(self, "submitted_students"):
+            self.submitted_students = set()
+        return self.submitted_students
 
 
 @st.cache_resource
@@ -68,11 +74,9 @@ def detect_face_in_image(image_bytes):
         if img is None:
             return False
 
-        # Convert to grayscale & equalize histogram for variable lighting conditions
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         gray = cv2.equalizeHist(gray)
 
-        # Primary Frontal Face Detector
         frontal_cascade = cv2.CascadeClassifier(
             cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
         )
@@ -87,7 +91,6 @@ def detect_face_in_image(image_bytes):
         if len(faces) > 0:
             return True
 
-        # Secondary Profile / Alt Frontal Face Detector for angled faces
         alt_cascade = cv2.CascadeClassifier(
             cv2.data.haarcascades + "haarcascade_frontalface_alt2.xml"
         )
@@ -97,7 +100,6 @@ def detect_face_in_image(image_bytes):
 
         return len(faces_alt) > 0
     except Exception:
-        # Fallback to true if image decodes fine to prevent complete user blocking on driver errors
         return len(image_bytes) > 0
 
 
@@ -108,7 +110,6 @@ def colorize_attendance_row(row):
         return ["background-color: #f8d7da; color: #721c24"] * len(row)
 
 
-# Helper function: Generate PDF binary stream
 def generate_pdf_report(
     lecturer_name, lecturer_id, subject, lab, attendance_data
 ):
@@ -196,7 +197,6 @@ if "pending_attendance_record" not in st.session_state:
     st.session_state.pending_attendance_record = None
 
 
-# Dialog Modal for Medical Certificate / Absence Confirmation
 @st.dialog("Medical Certificate / Absence Confirmation")
 def confirm_absence_submission():
     st.info("Medical Certificate / Memo Notice")
@@ -211,15 +211,13 @@ def confirm_absence_submission():
                 global_state.attendance_db.append(
                     st.session_state.pending_attendance_record
                 )
-                # FIX 3: Register matrix number as submitted for this active session
-                global_state.submitted_students.add(
+                global_state.get_submitted_students().add(
                     st.session_state.student_matrix
                 )
 
                 st.session_state.pending_attendance_record = None
                 st.session_state.show_absence_modal = False
 
-                # Reset user session and logout to landing
                 st.session_state.student_name = ""
                 st.session_state.student_matrix = ""
                 st.session_state.current_page = "Landing"
@@ -350,8 +348,7 @@ elif st.session_state.current_page == "LecturerDashboard":
                 global_state.lab = lecturer_lab
                 global_state.lecturer_lat = lec_lat
                 global_state.lecturer_lon = lec_lon
-                # FIX 3: Clear previously submitted students list when new session is activated
-                global_state.submitted_students.clear()
+                global_state.get_submitted_students().clear()
                 st.success(
                     f"Session activated for {lecturer_subject} at"
                     f" {lecturer_lab}."
@@ -447,8 +444,7 @@ elif st.session_state.current_page == "StudentDashboard":
     st.markdown("---")
 
     if global_state.session_active:
-        # FIX 3: Check if student has already submitted attendance in this active session
-        if st.session_state.student_matrix in global_state.submitted_students:
+        if st.session_state.student_matrix in global_state.get_submitted_students():
             st.success(
                 "You have already submitted your attendance for this active"
                 " session."
@@ -532,7 +528,6 @@ elif st.session_state.current_page == "StudentDashboard":
                         )
 
                         if submit_attempt_btn:
-                            # FIX 1: Enforce mandatory camera photo capture
                             if camera_photo is None:
                                 st.error(
                                     "Submission Blocked: You MUST take a face"
@@ -542,7 +537,6 @@ elif st.session_state.current_page == "StudentDashboard":
 
                             img_bytes = camera_photo.getvalue()
 
-                            # FIX 2: Relaxed multi-cascade face detection to resolve false negatives
                             face_detected = detect_face_in_image(img_bytes)
                             if not face_detected:
                                 st.error(
@@ -586,12 +580,10 @@ elif st.session_state.current_page == "StudentDashboard":
                                 st.rerun()
                             else:
                                 global_state.attendance_db.append(record_data)
-                                # FIX 3: Register matrix number as submitted for this active session
-                                global_state.submitted_students.add(
+                                global_state.get_submitted_students().add(
                                     st.session_state.student_matrix
                                 )
 
-                                # Clear session state & log out back to Landing page
                                 st.session_state.student_name = ""
                                 st.session_state.student_matrix = ""
                                 st.session_state.current_page = "Landing"
