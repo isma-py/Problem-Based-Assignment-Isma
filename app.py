@@ -7,7 +7,7 @@ from streamlit_js_eval import get_geolocation
 import models
 
 # ==========================================
-# GLOBAL MODULE-LEVEL VARIABLES (Shared across tabs/users)
+# GLOBAL MODULE-LEVEL VARIABLES
 # ==========================================
 if "GLOBAL_SESSION_ACTIVE" not in globals():
     GLOBAL_SESSION_ACTIVE = False
@@ -20,7 +20,7 @@ if "GLOBAL_SESSION_ACTIVE" not in globals():
 # Maximum allowable physical distance between student and lecturer (in meters)
 MAX_ALLOWED_DISTANCE_METERS = 50.0
 
-# Helper function: Calculate distance between two GPS coordinates using Haversine Formula
+# Helper function: Calculate distance using Haversine Formula
 def calculate_distance(lat1, lon1, lat2, lon2):
     R = 6371000.0  # Radius of Earth in meters
     phi1 = math.radians(lat1)
@@ -154,7 +154,7 @@ elif st.session_state.current_page == "LecturerDashboard":
     st.subheader("Classroom Location Verification")
     st.info("Please allow browser location access so the system can set the classroom boundary for students.")
     
-    # Prompt browser for lecturer's GPS location immediately
+    # Prompt browser for lecturer's GPS location
     loc = get_geolocation()
     
     lec_lat = None
@@ -212,13 +212,12 @@ elif st.session_state.current_page == "StudentDashboard":
             st.session_state.current_page = "Landing"
             st.rerun()
     with col_ref:
-        if st.button("🔄 Refresh Session Status"):
+        if st.button("🔔 Check For Active Attendance Session"):
             st.rerun()
 
     st.subheader("Student Location Verification")
     
-    # CRITICAL FIX: Trigger get_geolocation() ALWAYS at the top level of Student Dashboard
-    # so the browser pops up the 'Allow Location' permission prompt instantly upon login.
+    # Capture GPS immediately on load
     student_loc = get_geolocation()
     
     student_lat = None
@@ -233,23 +232,23 @@ elif st.session_state.current_page == "StudentDashboard":
 
     st.markdown("---")
 
-    # Check session state
+    # Evaluate session state
     if globals()["GLOBAL_SESSION_ACTIVE"]:
+        st.success(f"📢 **ACTIVE SESSION DETECTED:** {globals()['GLOBAL_SUBJECT']} ({globals()['GLOBAL_LAB']})")
+        
         lec_lat = globals()["GLOBAL_LECTURER_LAT"]
         lec_lon = globals()["GLOBAL_LECTURER_LON"]
         
         if student_lat is None or student_lon is None:
             st.info("Awaiting student GPS authorization... Please ensure your device location is turned on and allowed in the browser.")
         else:
-            # Calculate physical distance in meters between lecturer and student
             distance = calculate_distance(lec_lat, lec_lon, student_lat, student_lon)
-            
             st.write(f"Calculated distance to classroom: **{distance:.1f} meters**")
             
             if distance > MAX_ALLOWED_DISTANCE_METERS:
                 st.error(f"Location Verification Failed: You are {distance:.1f} meters away from the classroom. Submissions are restricted to within {MAX_ALLOWED_DISTANCE_METERS} meters.")
             else:
-                st.success(f"Location Verified: You are within the classroom boundary ({distance:.1f}m away). Active session for {globals()['GLOBAL_SUBJECT']} in {globals()['GLOBAL_LAB']}.")
+                st.success(f"Location Verified: You are within the classroom boundary ({distance:.1f}m away). You may now submit your attendance below.")
                 
                 with st.form("student_attendance_form"):
                     st.subheader("Submit Attendance Details")
@@ -330,4 +329,4 @@ elif st.session_state.current_page == "StudentDashboard":
                             st.session_state.pending_attendance_data = None
                             st.rerun()
     else:
-        st.warning("Attendance session is currently closed. Please wait until the lecturer activates the attendance session, then click '🔄 Refresh Session Status'.")
+        st.warning("⏳ Attendance session is currently closed. Click '🔔 Check For Active Attendance Session' above once your lecturer triggers the session.")
