@@ -42,28 +42,19 @@ st.markdown(
         max-width: 100% !important;
     }
 
-    /* Mobile Viewport Adjustments (Screens below 768px) */
+    /* Mobile Viewport Adjustments */
     @media (max-width: 768px) {
         .main .block-container {
             padding-left: 0.8rem !important;
             padding-right: 0.8rem !important;
         }
-        h1 {
-            font-size: 1.6rem !important;
-            line-height: 1.25 !important;
-        }
-        h2 {
-            font-size: 1.25rem !important;
-        }
-        h3 {
-            font-size: 1.1rem !important;
-        }
-        div[data-testid="stForm"] {
-            padding: 14px !important;
-        }
+        h1 { font-size: 1.6rem !important; line-height: 1.25 !important; }
+        h2 { font-size: 1.25rem !important; }
+        h3 { font-size: 1.1rem !important; }
+        div[data-testid="stForm"] { padding: 14px !important; }
     }
 
-    /* Desktop Viewport Adjustments (Screens above 768px) */
+    /* Desktop Viewport Adjustments */
     @media (min-width: 769px) {
         .main .block-container {
             padding-left: 3rem !important;
@@ -80,36 +71,7 @@ st.markdown(
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
     }
 
-    /* Responsive Touch & Click Friendly Buttons */
-    .stButton > button {
-        background-color: #F1F5F9;
-        color: #475569;
-        border-radius: 8px;
-        padding: 6px 12px !important;
-        font-weight: 500;
-        width: 100% !important;
-        min-height: 38px !important;
-        border: 1px solid #CBD5E1;
-        transition: all 0.2s ease-in-out;
-    }
-    .stButton > button:hover {
-        background-color: #E2E8F0;
-        color: #1E293B;
-        border-color: #94A3B8;
-    }
-
-    /* Primary Accent Button */
-    button[kind="primary"] {
-        background-color: #6366F1 !important;
-        color: #FFFFFF !important;
-        border: none !important;
-        box-shadow: 0 2px 4px rgba(99, 102, 241, 0.2) !important;
-    }
-    button[kind="primary"]:hover {
-        background-color: #4F46E5 !important;
-    }
-
-    /* Responsive Inputs and Dropdowns */
+    /* Global Input & Dropdown Styling */
     .stTextInput > div > div > input, .stSelectbox > div > div {
         background-color: #F8FAFC !important;
         border-radius: 8px !important;
@@ -128,7 +90,7 @@ st.markdown(
         padding: 12px !important;
     }
 
-    /* Scrollbar Styling */
+    /* Custom Scrollbar Styling */
     div[data-testid="stVerticalBlockBorderWrapper"]:has(.scrollable-marker)::-webkit-scrollbar {
         width: 6px;
     }
@@ -144,29 +106,28 @@ st.markdown(
         background: #94A3B8;
     }
 
-    /* Actions Column: Inline Horizontal Layout */
-    .action-btn-container {
-        display: flex !important;
-        flex-direction: row !important;
-        align-items: center !important;
-        gap: 6px !important;
-    }
-    .action-btn-container .stButton {
-        flex: 1 !important;
-        margin-bottom: 0px !important;
-    }
-    .action-btn-container .stButton > button {
+    /* Fixed Standardized Action Buttons in Table */
+    .action-btn-wrap .stButton > button {
+        width: 70px !important;
+        min-width: 70px !important;
+        max-width: 70px !important;
+        height: 34px !important;
         min-height: 34px !important;
-        padding: 4px 8px !important;
+        font-size: 0.8rem !important;
+        padding: 2px 4px !important;
         margin: 0 !important;
-        font-size: 0.85rem !important;
+        border-radius: 6px !important;
     }
 
-    /* Action Grid Delete Styling */
-    .action-btn-container-delete .stButton > button {
+    /* Delete Button Specific Styling */
+    .action-btn-del .stButton > button {
         background-color: #FEF2F2 !important;
         color: #DC2626 !important;
-        border-color: #FCA5A5 !important;
+        border: 1px solid #FCA5A5 !important;
+    }
+    .action-btn-del .stButton > button:hover {
+        background-color: #FEE2E2 !important;
+        border-color: #EF4444 !important;
     }
 
     [data-testid="stMetricValue"] {
@@ -568,32 +529,10 @@ elif st.session_state.current_page == "LecturerDashboard":
     lecturer_lab = st.selectbox(
         "Select Laboratory / Classroom Location",
         [
-            "CCNA 1",
-            "CCNA 2",
-            "CNL 1",
-            "CNL 2",
-            "IT 1",
-            "IT 2",
-            "APDV 1",
-            "APDV 2",
-            "LL1",
-            "LL2",
-            "DKU",
-            "DK1",
-            "DK2",
-            "DK3",
-            "DK4",
-            "BK1",
-            "BK2",
-            "BK3",
-            "BK4",
-            "BK5",
-            "BK6",
-            "BK7",
-            "BK8",
-            "BK9",
-            "BK10",
-            "BS-JPA",
+            "CCNA 1", "CCNA 2", "CNL 1", "CNL 2", "IT 1", "IT 2",
+            "APDV 1", "APDV 2", "LL1", "LL2", "DKU", "DK1",
+            "DK2", "DK3", "DK4", "BK1", "BK2", "BK3", "BK4",
+            "BK5", "BK6", "BK7", "BK8", "BK9", "BK10", "BS-JPA",
         ],
     )
 
@@ -637,17 +576,27 @@ elif st.session_state.current_page == "LecturerDashboard":
             value=mc_count,
         )
 
+        # 1. FIXED & SCROLLABLE ATTENDANCE RECORD DATAFRAME TABLE
         df = pd.DataFrame(attendance_list)
         display_columns = ["Timestamp", "Name", "Matrix", "Class", "Subject", "Lab", "Status", "File Name"]
         existing_cols = [c for c in display_columns if c in df.columns]
-        st.dataframe(df[existing_cols], use_container_width=True)
+        
+        # Render dataframe with fixed height so it scrolls vertically when populated with many rows
+        st.dataframe(
+            df[existing_cols],
+            use_container_width=True,
+            height=280
+        )
 
         st.markdown("### Verification Actions")
 
         records_to_delete = []
 
-        # Fixed Header Outside Scroll Area
-        h_ts, h_nm, h_mx, h_cl, h_sub, h_st, h_act = st.columns([1.3, 1.3, 1.1, 0.9, 1.3, 1.1, 2.0])
+        # Exact matching column proportions for perfect alignment
+        COL_RATIOS = [1.6, 1.2, 1.0, 0.9, 2.2, 1.6, 2.5]
+
+        # Fixed Header Alignment Outside Scroll Area
+        h_ts, h_nm, h_mx, h_cl, h_sub, h_st, h_act = st.columns(COL_RATIOS)
         h_ts.markdown("**Timestamp**")
         h_nm.markdown("**Name**")
         h_mx.markdown("**Matrix**")
@@ -657,11 +606,11 @@ elif st.session_state.current_page == "LecturerDashboard":
         h_act.markdown("**Actions**")
         st.markdown("<hr style='margin-top:2px; margin-bottom:8px;' />", unsafe_allow_html=True)
 
-        # Scrollable Fixed Container Box
+        # 2. SCROLLABLE VERIFICATION ACTIONS CONTAINER
         with st.container(border=True):
             st.markdown('<div class="scrollable-marker"></div>', unsafe_allow_html=True)
             for idx, rec in enumerate(attendance_list):
-                c_ts, c_nm, c_mx, c_cl, c_sub, c_st, c_act = st.columns([1.3, 1.3, 1.1, 0.9, 1.3, 1.1, 2.0])
+                c_ts, c_nm, c_mx, c_cl, c_sub, c_st, c_act = st.columns(COL_RATIOS)
 
                 c_ts.write(rec.get("Timestamp", "-"))
                 c_nm.write(f"**{rec.get('Name', '-')}**")
@@ -670,27 +619,33 @@ elif st.session_state.current_page == "LecturerDashboard":
                 c_sub.write(rec.get("Subject", "-"))
                 c_st.write(rec.get("Status", "-"))
 
-                # Side-by-side horizontal actions in sub-columns
+                # Uniform Button Sub-columns with Fixed Alignment
                 with c_act:
-                    act_cols = st.columns(3)
+                    act_col1, act_col2, act_col3 = st.columns([1, 1, 1])
                     
-                    with act_cols[0]:
+                    with act_col1:
                         if rec.get("image_bytes"):
+                            st.markdown('<div class="action-btn-wrap">', unsafe_allow_html=True)
                             if st.button("Photo", key=f"img_btn_{idx}", help="View Camera Photo"):
                                 st.session_state.selected_image_record = rec
                                 st.rerun()
+                            st.markdown('</div>', unsafe_allow_html=True)
 
-                    with act_cols[1]:
+                    with act_col2:
                         if rec.get("doc_bytes"):
+                            st.markdown('<div class="action-btn-wrap">', unsafe_allow_html=True)
                             if st.button("Doc", key=f"doc_btn_{idx}", help="View Document Proof"):
                                 st.session_state.selected_doc_record = rec
                                 st.rerun()
+                            st.markdown('</div>', unsafe_allow_html=True)
 
-                    with act_cols[2]:
-                        st.markdown('<div class="action-btn-container-delete">', unsafe_allow_html=True)
+                    with act_col3:
+                        st.markdown('<div class="action-btn-wrap action-btn-del">', unsafe_allow_html=True)
                         if st.button("Delete", key=f"del_btn_{idx}", help="Remove Record"):
                             records_to_delete.append(idx)
                         st.markdown('</div>', unsafe_allow_html=True)
+
+                st.markdown("<hr style='margin:4px 0;' />", unsafe_allow_html=True)
 
         if records_to_delete:
             for d_idx in sorted(records_to_delete, reverse=True):
