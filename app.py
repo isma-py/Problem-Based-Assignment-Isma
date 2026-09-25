@@ -28,21 +28,20 @@ class AttendanceSystemState:
         self.lecturer_lat = None
         self.lecturer_lon = None
         self.attendance_db = []
-        self._submitted_students = set()
+        self.submitted_students = set()
 
-    @property
-    def submitted_students(self) -> set:
-        """Safely retrieve or initialize submitted_students for cached instances."""
-        if not hasattr(self, "_submitted_students") or self._submitted_students is None:
-            self._submitted_students = set()
-        return self._submitted_students
-
-    @submitted_students.setter
-    def submitted_students(self, value):
-        if isinstance(value, set):
-            self._submitted_students = value
-        else:
-            self._submitted_students = set(value)
+    def __getattr__(self, item):
+        """
+        Fallback interceptor: Ensures legacy cached instances in Streamlit memory
+        never raise an AttributeError when new attributes are accessed.
+        """
+        if item == "submitted_students":
+            self.submitted_students = set()
+            return self.submitted_students
+        if item == "attendance_db":
+            self.attendance_db = []
+            return self.attendance_db
+        raise AttributeError(f"'{type(self).__name__}' object has no attribute '{item}'")
 
 
 @st.cache_resource
