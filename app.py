@@ -76,7 +76,6 @@ def detect_face_in_image(image_bytes):
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         gray = cv2.equalizeHist(gray)
 
-        # Cascades for robust frontal and angled face detection
         cascade_files = [
             "haarcascade_frontalface_default.xml",
             "haarcascade_frontalface_alt.xml",
@@ -100,7 +99,6 @@ def detect_face_in_image(image_bytes):
 
         return False
     except Exception:
-        # Fallback to prevent app crash if OpenCV binaries encounter platform-specific issues
         return len(image_bytes) > 1000
 
 
@@ -170,7 +168,8 @@ def generate_pdf_report(
             ("BOTTOMPADDING", (0, 0), (-1, 0), 6),
             ("BACKGROUND", (0, 1), (-1, -1), colors.HexColor("#F9FAFB")),
             ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#D1D5DB")),
-            ("FONTNAME", (0, 1), (-1, -1), 8),
+            ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
+            ("FONTSIZE", (0, 1), (-1, -1), 8),
         ])
     )
 
@@ -361,7 +360,7 @@ elif st.session_state.current_page == "LecturerDashboard":
         f" {st.session_state.lecturer_id})"
     )
 
-    col_l1, col_l2 = st.columns([1, 4])
+    col_l1, col_l2, col_l3 = st.columns([1, 2, 2])
     with col_l1:
         if st.button("Log Out"):
             st.session_state.current_page = "Landing"
@@ -369,6 +368,12 @@ elif st.session_state.current_page == "LecturerDashboard":
     with col_l2:
         if st.button("Refresh Attendance Table"):
             st.rerun()
+    with col_l3:
+        if global_store["session_active"]:
+            if st.button("Close Attendance Session", type="primary"):
+                global_store["session_active"] = False
+                st.success("Attendance session has been closed.")
+                st.rerun()
 
     st.subheader("Classroom Location Verification")
     loc = get_geolocation()
@@ -424,16 +429,29 @@ elif st.session_state.current_page == "LecturerDashboard":
             value=mc_count,
         )
 
-        # Build Interactive Table Grid with Modal Buttons
-        t_header = st.columns([1.5, 1.5, 1.2, 1.5, 1.2, 1.2, 1.8])
-        headers = [
+        # Styled Colored Table View
+        df_records = pd.DataFrame(attendance_list)
+        styled_df = df_records[[
             "Timestamp",
             "Name",
             "Matrix",
             "Subject",
+            "Lab",
             "Status",
-            "Facial Capt.",
-            "Doc Attach.",
+            "File Name",
+        ]].style.apply(colorize_attendance_row, axis=1)
+        st.dataframe(styled_df, height=250, use_container_width=True)
+
+        st.markdown("**Evidence Actions / Document Viewers:**")
+        
+        # Interactive Modal Actions Grid
+        t_header = st.columns([1.5, 1.5, 1.2, 1.2, 1.8])
+        headers = [
+            "Timestamp",
+            "Name",
+            "Matrix",
+            "Facial Capture",
+            "Document Attachment",
         ]
         for idx, head in enumerate(headers):
             t_header[idx].markdown(f"**{head}**")
@@ -441,33 +459,26 @@ elif st.session_state.current_page == "LecturerDashboard":
         st.markdown("---")
 
         for idx, rec in enumerate(attendance_list):
-            row_cols = st.columns([1.5, 1.5, 1.2, 1.5, 1.2, 1.2, 1.8])
+            row_cols = st.columns([1.5, 1.5, 1.2, 1.2, 1.8])
             row_cols[0].write(rec.get("Timestamp", ""))
             row_cols[1].write(rec.get("Name", ""))
             row_cols[2].write(rec.get("Matrix", ""))
-            row_cols[3].write(rec.get("Subject", ""))
-
-            status_str = rec.get("Status", "")
-            if "Present" in status_str:
-                row_cols[4].markdown(f"🟢 **{status_str}**")
-            else:
-                row_cols[4].markdown(f"🔴 **{status_str}**")
 
             # Clickable "Show" Button for Camera Facial Image
             if rec.get("image_bytes"):
-                if row_cols[5].button("Show", key=f"img_btn_{idx}"):
+                if row_cols[3].button("Show", key=f"img_btn_{idx}"):
                     st.session_state.selected_image_record = rec
                     st.rerun()
             else:
-                row_cols[5].write("N/A")
+                row_cols[3].write("N/A")
 
             # Clickable "Show Document" Button for Uploaded Certificate
             if rec.get("doc_bytes"):
-                if row_cols[6].button("Show Document", key=f"doc_btn_{idx}"):
+                if row_cols[4].button("Show Document", key=f"doc_btn_{idx}"):
                     st.session_state.selected_doc_record = rec
                     st.rerun()
             else:
-                row_cols[6].write("None")
+                row_cols[4].write("None")
 
         st.markdown("---")
 
