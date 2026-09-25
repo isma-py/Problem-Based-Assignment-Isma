@@ -17,43 +17,32 @@ from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, Tabl
 
 # ==========================================
 # THREAD-SAFE GLOBAL SHARED STATE (Cross-Session)
+# Uses a simple Python dictionary to prevent Streamlit caching errors
 # ==========================================
-class AttendanceSystemState:
-    """Class to share global state across ALL user sessions and tabs."""
-
-    def __init__(self):
-        self.session_active = False
-        self.subject = ""
-        self.lab = ""
-        self.lecturer_lat = None
-        self.lecturer_lon = None
-        self.attendance_db = []
-        self.submitted_students = set()
-
-    def get_submitted_students(self) -> set:
-        """Safe accessor method ensuring a valid set is returned regardless of caching state."""
-        if not hasattr(self, "submitted_students") or not isinstance(
-            self.submitted_students, set
-        ):
-            self.submitted_students = set()
-        return self.submitted_students
-
-    def get_attendance_db(self) -> list:
-        """Safe accessor method ensuring a valid list is returned regardless of caching state."""
-        if not hasattr(self, "attendance_db") or not isinstance(
-            self.attendance_db, list
-        ):
-            self.attendance_db = []
-        return self.attendance_db
-
-
 @st.cache_resource
-def get_global_system_state():
-    """Returns a single shared instance accessible by ALL users/tabs."""
-    return AttendanceSystemState()
+def get_global_store():
+    """Returns a single shared dictionary instance accessible by ALL users/tabs."""
+    return {
+        "session_active": False,
+        "subject": "",
+        "lab": "",
+        "lecturer_lat": None,
+        "lecturer_lon": None,
+        "attendance_db": [],
+        "submitted_students": set(),
+    }
 
 
-global_state = get_global_system_state()
+# Retrieve or initialize dictionary keys dynamically to prevent any missing key errors
+global_store = get_global_store()
+global_store.setdefault("session_active", False)
+global_store.setdefault("subject", "")
+global_store.setdefault("lab", "")
+global_store.setdefault("lecturer_lat", None)
+global_store.setdefault("lecturer_lon", None)
+global_store.setdefault("attendance_db", [])
+global_store.setdefault("submitted_students", set())
+
 MAX_ALLOWED_DISTANCE_METERS = 50.0
 
 
@@ -218,10 +207,10 @@ def confirm_absence_submission():
     with col_confirm:
         if st.button("Confirm & Submit Attendance"):
             if st.session_state.pending_attendance_record:
-                global_state.get_attendance_db().append(
+                global_store["attendance_db"].append(
                     st.session_state.pending_attendance_record
                 )
-                global_state.get_submitted_students().add(
+                global_store["submitted_students"].add(
                     st.session_state.student_matrix
                 )
 
@@ -353,12 +342,12 @@ elif st.session_state.current_page == "LecturerDashboard":
             if lec_lat is None or lec_lon is None:
                 st.error("GPS coordinates needed to activate session.")
             else:
-                global_state.session_active = True
-                global_state.subject = lecturer_subject
-                global_state.lab = lecturer_lab
-                global_state.lecturer_lat = lec_lat
-                global_state.lecturer_lon = lec_lon
-                global_state.get_submitted_students().clear()
+                global_store["session_active"] = True
+                global_store["subject"] = lecturer_subject
+                global_store["lab"] = lecturer_lab
+                global_store["lecturer_lat"] = lec_lat
+                global_store["lecturer_lon"] = lec_lon
+                global_store["submitted_students"].clear()
                 st.success(
                     f"Session activated for {lecturer_subject} at"
                     f" {lecturer_lab}."
@@ -367,7 +356,7 @@ elif st.session_state.current_page == "LecturerDashboard":
     st.markdown("---")
     st.subheader("Live Attendance Records")
 
-    attendance_list = global_state.get_attendance_db()
+    attendance_list = global_store["attendance_db"]
     if attendance_list:
         st.write(f"Total Submissions Logged: **{len(attendance_list)}**")
         mc_count = sum(1 for item in attendance_list if item.get("has_mc"))
@@ -410,8 +399,8 @@ elif st.session_state.current_page == "LecturerDashboard":
         pdf_bytes = generate_pdf_report(
             st.session_state.lecturer_name,
             st.session_state.lecturer_id,
-            global_state.subject,
-            global_state.lab,
+            global_store["subject"],
+            global_store["lab"],
             attendance_list,
         )
 
@@ -447,11 +436,8 @@ elif st.session_state.current_page == "StudentDashboard":
 
     st.markdown("---")
 
-    if global_state.session_active:
-        if (
-            st.session_state.student_matrix
-            in global_state.get_submitted_students()
-        ):
+    if global_store["session_active"]:
+        if st.session_state.student_matrix in global_store["submitted_students"]:
             st.success(
                 "You have already submitted your attendance for this active"
                 " session."
@@ -461,8 +447,8 @@ elif st.session_state.current_page == "StudentDashboard":
             )
         else:
             st.markdown(
-                f"**Active Session:** {global_state.subject}"
-                f" ({global_state.lab})"
+                f"**Active Session:** {global_store['subject']}"
+                f" ({global_store['lab']})"
             )
 
             student_loc = get_geolocation()
@@ -474,8 +460,8 @@ elif st.session_state.current_page == "StudentDashboard":
                     student_loc["coords"]["longitude"],
                 )
                 distance = calculate_distance(
-                    global_state.lecturer_lat,
-                    global_state.lecturer_lon,
+                    global_store["lecturer_lat"],
+                    global_store["lecturer_lon"],
                     student_lat,
                     student_lon,
                 )
@@ -571,8 +557,8 @@ elif st.session_state.current_page == "StudentDashboard":
                                 ),
                                 "Name": st.session_state.student_name,
                                 "Matrix": st.session_state.student_matrix,
-                                "Subject": global_state.subject,
-                                "Lab": global_state.lab,
+                                "Subject": global_store["subject"],
+                                "Lab": global_store["lab"],
                                 "Status": attendance_status_type,
                                 "has_mc": has_mc_flag,
                                 "File Name": file_name_str,
@@ -586,10 +572,10 @@ elif st.session_state.current_page == "StudentDashboard":
                                 st.session_state.show_absence_modal = True
                                 st.rerun()
                             else:
-                                global_state.get_attendance_db().append(
+                                global_store["attendance_db"].append(
                                     record_data
                                 )
-                                global_state.get_submitted_students().add(
+                                global_store["submitted_students"].add(
                                     st.session_state.student_matrix
                                 )
 
