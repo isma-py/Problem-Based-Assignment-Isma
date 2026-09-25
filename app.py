@@ -16,44 +16,70 @@ from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 # ==========================================
-# STREAMLIT PAGE CONFIG & SOFT LIGHT THEME
+# STREAMLIT PAGE CONFIG & MOBILE-OPTIMIZED THEME
 # ==========================================
 st.set_page_config(
     page_title="Campus Attendance System",
     page_icon="🎓",
     layout="wide",
+    initial_sidebar_state="collapsed",
 )
 
-# Custom Eye-Friendly Soft Light Theme Styling
+# Custom Responsive Mobile CSS Styling
 st.markdown(
     """
     <style>
-    /* Global Soft Light Background and Text Palette */
+    /* Global Container Padding Adjustments for Mobile */
     .stApp {
         background-color: #F8FAFB;
         color: #334155;
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     }
 
+    .main .block-container {
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
+        padding-top: 1.5rem !important;
+        padding-bottom: 2rem !important;
+        max-width: 100% !important;
+    }
+
+    /* Typography scale for Mobile Viewports */
+    h1 {
+        font-size: 1.75rem !important;
+        line-height: 1.25 !important;
+        word-wrap: break-word;
+    }
+    h2 {
+        font-size: 1.35rem !important;
+        line-height: 1.3 !important;
+    }
+    h3 {
+        font-size: 1.15rem !important;
+        line-height: 1.3 !important;
+    }
+
     /* Soft Form & Card Containers */
     div[data-testid="stForm"] {
         background-color: #FFFFFF;
         border-radius: 12px;
-        padding: 24px;
+        padding: 16px !important;
         border: 1px solid #E2E8F0;
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
     }
 
-    /* Standard Interactive Buttons */
+    /* Mobile-Touch Friendly Full-Width Standard Buttons */
     .stButton > button {
         background-color: #F1F5F9;
         color: #475569;
         border-radius: 8px;
-        padding: 6px 14px;
+        padding: 10px 14px !important;
         font-weight: 500;
-        width: 100%;
+        width: 100% !important;
+        min-height: 44px !important; /* Mobile touch target size */
         border: 1px solid #CBD5E1;
         transition: all 0.2s ease-in-out;
+        font-size: 14px !important;
     }
     .stButton > button:hover {
         background-color: #E2E8F0;
@@ -61,7 +87,7 @@ st.markdown(
         border-color: #94A3B8;
     }
 
-    /* Primary Accent Button (Soft Indigo) */
+    /* Primary Accent Button */
     button[kind="primary"] {
         background-color: #6366F1 !important;
         color: #FFFFFF !important;
@@ -72,63 +98,68 @@ st.markdown(
         background-color: #4F46E5 !important;
     }
 
-    /* Action Grid Row Box - Matches Table Width Layout Exactly */
-    .action-row-container {
+    /* Mobile Card View for Attendance Records */
+    .record-card {
         background-color: #FFFFFF;
-        border-radius: 8px;
-        padding: 8px 12px;
         border: 1px solid #E2E8F0;
-        margin-bottom: 6px;
+        border-radius: 10px;
+        padding: 14px;
+        margin-bottom: 12px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    .record-card-header {
+        font-weight: 600;
+        font-size: 15px;
+        color: #1E293B;
+        margin-bottom: 4px;
+    }
+    .record-card-sub {
+        font-size: 12px;
+        color: #64748B;
+        margin-bottom: 8px;
+    }
+    .record-card-detail {
+        font-size: 13px;
+        color: #334155;
+        margin-bottom: 4px;
     }
 
-    /* Standard Text Action Buttons (Photo, Doc, Delete) */
+    /* Action Grid Row Box */
     .action-btn-container .stButton > button {
         width: 100% !important;
-        height: 34px !important;
-        min-height: 34px !important;
+        height: 38px !important;
+        min-height: 38px !important;
         padding: 4px 8px !important;
         font-size: 13px !important;
         font-weight: 500 !important;
-        line-height: 1.2 !important;
         border-radius: 6px !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
     }
 
-    /* Delete Button Specific Warning Style */
     .action-btn-container-delete .stButton > button {
         background-color: #FEF2F2 !important;
         color: #DC2626 !important;
         border-color: #FCA5A5 !important;
     }
-    .action-btn-container-delete .stButton > button:hover {
-        background-color: #FEE2E2 !important;
-        color: #991B1B !important;
-        border-color: #F87171 !important;
-    }
 
-    /* Soft Inputs and Dropdowns */
+    /* Responsive Inputs and Dropdowns */
     .stTextInput > div > div > input, .stSelectbox > div > div {
         background-color: #F8FAFC !important;
         border-radius: 8px !important;
         border: 1px solid #CBD5E1 !important;
         color: #334155 !important;
-    }
-    .stTextInput > div > div > input:focus, .stSelectbox > div > div:focus {
-        border-color: #818CF8 !important;
-        box-shadow: 0 0 0 2px rgba(129, 140, 248, 0.2) !important;
+        min-height: 42px !important;
     }
 
-    /* Soft Accent Metric Values */
     [data-testid="stMetricValue"] {
         color: #4F46E5;
         font-weight: 600;
+        font-size: 1.5rem !important;
     }
 
-    /* Clean Soft Dividers */
     hr {
         border-color: #E2E8F0;
+        margin-top: 1rem !important;
+        margin-bottom: 1rem !important;
     }
     </style>
     """,
@@ -244,8 +275,8 @@ def generate_pdf_report(
     title_style = ParagraphStyle(
         "TitleStyle",
         parent=styles["Heading1"],
-        fontSize=18,
-        leading=22,
+        fontSize=16,
+        leading=20,
         textColor=colors.HexColor("#1E293B"),
     )
     normal_style = styles["Normal"]
@@ -275,14 +306,14 @@ def generate_pdf_report(
             str(record.get("File Name", "None")),
         ])
 
-    pdf_table = Table(table_data, colWidths=[110, 120, 90, 120, 110])
+    pdf_table = Table(table_data, colWidths=[100, 110, 80, 110, 100])
     pdf_table.setStyle(
         TableStyle([
             ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#334155")),
             ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
             ("ALIGN", (0, 0), (-1, -1), "LEFT"),
             ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-            ("FONTSIZE", (0, 0), (-1, 0), 10),
+            ("FONTSIZE", (0, 0), (-1, 0), 9),
             ("BOTTOMPADDING", (0, 0), (-1, 0), 6),
             ("BACKGROUND", (0, 1), (-1, -1), colors.HexColor("#F8FAFC")),
             ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#E2E8F0")),
@@ -408,32 +439,35 @@ if st.session_state.selected_doc_record:
     st.session_state.selected_doc_record = None
 
 # ==========================================
-# PAGE 1: LANDING
+# PAGE 1: LANDING (Mobile Optimized Stack)
 # ==========================================
 if st.session_state.current_page == "Landing":
-    st.title("Campus Attendance Management System")
+    st.title("Campus Attendance System")
     st.write("Please select your portal to proceed with authentication.")
     st.markdown("---")
-    col1, col2 = st.columns(2)
-    with col1:
-        st.subheader("Lecturer Portal")
-        if st.button("Go to Lecturer Login"):
-            st.session_state.current_page = "LecturerLogin"
-            st.rerun()
-    with col2:
-        st.subheader("Student Portal")
-        if st.button("Go to Student Login"):
-            st.session_state.current_page = "StudentLogin"
-            st.rerun()
+
+    # Stack vertically on mobile viewports naturally
+    st.subheader("Lecturer Portal")
+    if st.button("Go to Lecturer Login"):
+        st.session_state.current_page = "LecturerLogin"
+        st.rerun()
+
+    st.markdown("---")
+
+    st.subheader("Student Portal")
+    if st.button("Go to Student Login"):
+        st.session_state.current_page = "StudentLogin"
+        st.rerun()
 
 # ==========================================
 # PAGE 2: LECTURER LOGIN
 # ==========================================
 elif st.session_state.current_page == "LecturerLogin":
-    st.title("Lecturer Portal Authentication")
+    st.title("Lecturer Login")
     if st.button("Back to Main Portal"):
         st.session_state.current_page = "Landing"
         st.rerun()
+
     with st.form("lecturer_login_form"):
         lec_name_input = st.text_input("Enter Lecturer Name:")
         lec_id_input = st.text_input("Enter Lecturer ID:")
@@ -451,10 +485,11 @@ elif st.session_state.current_page == "LecturerLogin":
 # PAGE 3: STUDENT LOGIN
 # ==========================================
 elif st.session_state.current_page == "StudentLogin":
-    st.title("Student Portal Authentication")
+    st.title("Student Login")
     if st.button("Back to Main Portal"):
         st.session_state.current_page = "Landing"
         st.rerun()
+
     with st.form("student_login_form"):
         stud_name_input = st.text_input("Enter Full Name:")
         stud_matrix_input = st.text_input("Enter Matrix Number:")
@@ -536,7 +571,7 @@ elif st.session_state.current_page == "LecturerDashboard":
                 "BS-JPA",
             ],
         )
-        
+
         activate_btn = st.form_submit_button("Get Attendance (Activate Session)")
 
         if activate_btn:
@@ -554,18 +589,16 @@ elif st.session_state.current_page == "LecturerDashboard":
                 )
                 st.rerun()
 
-        col_btn1, col_btn2, col_spacer = st.columns([1.1, 1.2, 2.0])
-        with col_btn1:
-            refresh_btn = st.form_submit_button("Refresh Attendance Table")
-            if refresh_btn:
+        refresh_btn = st.form_submit_button("Refresh Attendance Table")
+        if refresh_btn:
+            st.rerun()
+
+        if global_store["session_active"]:
+            close_btn = st.form_submit_button("Close Attendance Session", type="primary")
+            if close_btn:
+                global_store["session_active"] = False
+                st.success("Attendance session has been closed.")
                 st.rerun()
-        with col_btn2:
-            if global_store["session_active"]:
-                close_btn = st.form_submit_button("Close Attendance Session", type="primary")
-                if close_btn:
-                    global_store["session_active"] = False
-                    st.success("Attendance session has been closed.")
-                    st.rerun()
 
     st.markdown("---")
     st.subheader("Attendance Record")
@@ -579,67 +612,55 @@ elif st.session_state.current_page == "LecturerDashboard":
             value=mc_count,
         )
 
-        df = pd.DataFrame(attendance_list)
-        display_columns = ["Timestamp", "Name", "Matrix", "Subject", "Lab", "Status", "File Name"]
-        existing_cols = [c for c in display_columns if c in df.columns]
-        st.dataframe(df[existing_cols], use_container_width=True)
-
-        st.markdown("### Attachment & Verification Actions")
-        
-        # Matches identical column width proportion ratio of full attendance dataframe view
-        col_ratios = [1.5, 1.5, 1.2, 1.5, 1.5, 1.2, 1.2]
-        
-        # Table-style header matching the exact width layout of the Attendance Records above
-        h_ts, h_nm, h_mx, h_sub, h_lab, h_st, h_act = st.columns(col_ratios)
-        h_ts.markdown("**Timestamp**")
-        h_nm.markdown("**Name**")
-        h_mx.markdown("**Matrix**")
-        h_sub.markdown("**Subject**")
-        h_lab.markdown("**Lab**")
-        h_st.markdown("**Status**")
-        h_act.markdown("**Verification Actions**")
-        st.markdown("<hr style='margin-top:2px; margin-bottom:10px;' />", unsafe_allow_html=True)
+        st.markdown("### Records & Verification Actions")
 
         records_to_delete = []
 
+        # Mobile-Friendly Card Layout for Attendance Records
         for idx, rec in enumerate(attendance_list):
-            c_ts, c_nm, c_mx, c_sub, c_lab, c_st, c_act = st.columns(col_ratios)
-            
-            c_ts.write(rec.get("Timestamp", "-"))
-            c_nm.write(f"**{rec.get('Name', '-')}**")
-            c_mx.write(rec.get("Matrix", "-"))
-            c_sub.write(rec.get("Subject", "-"))
-            c_lab.write(rec.get("Lab", "-"))
-            c_st.write(rec.get("Status", "-"))
-            
-            with c_act:
-                act_btn1, act_btn2, act_btn3 = st.columns(3)
-                
-                with act_btn1:
-                    if rec.get("image_bytes"):
-                        st.markdown('<div class="action-btn-container">', unsafe_allow_html=True)
-                        if st.button("Photo", key=f"img_btn_{idx}", help="View Camera Photo"):
-                            st.session_state.selected_image_record = rec
-                            st.rerun()
-                        st.markdown('</div>', unsafe_allow_html=True)
-                    else:
-                        st.caption("-")
-                        
-                with act_btn2:
-                    if rec.get("doc_bytes"):
-                        st.markdown('<div class="action-btn-container">', unsafe_allow_html=True)
-                        if st.button("Doc", key=f"doc_btn_{idx}", help="View Document Proof"):
-                            st.session_state.selected_doc_record = rec
-                            st.rerun()
-                        st.markdown('</div>', unsafe_allow_html=True)
-                    else:
-                        st.caption("-")
-                        
-                with act_btn3:
-                    st.markdown('<div class="action-btn-container action-btn-container-delete">', unsafe_allow_html=True)
-                    if st.button("Delete", key=f"del_btn_{idx}", help="Remove Record"):
-                        records_to_delete.append(idx)
+            st.markdown(
+                f"""
+                <div class="record-card">
+                    <div class="record-card-header">{rec.get('Name', '-')}</div>
+                    <div class="record-card-sub">Matrix: {rec.get('Matrix', '-')} | Status: <b>{rec.get('Status', '-')}</b></div>
+                    <div class="record-card-detail"><b>Time:</b> {rec.get('Timestamp', '-')}</div>
+                    <div class="record-card-detail"><b>Subject:</b> {rec.get('Subject', '-')}</div>
+                    <div class="record-card-detail"><b>Location:</b> {rec.get('Lab', '-')}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+            # Touch-friendly action buttons in 3 flexible columns
+            col_act1, col_act2, col_act3 = st.columns(3)
+
+            with col_act1:
+                if rec.get("image_bytes"):
+                    st.markdown('<div class="action-btn-container">', unsafe_allow_html=True)
+                    if st.button("Photo", key=f"img_btn_{idx}", help="View Camera Photo"):
+                        st.session_state.selected_image_record = rec
+                        st.rerun()
                     st.markdown('</div>', unsafe_allow_html=True)
+                else:
+                    st.caption("No Photo")
+
+            with col_act2:
+                if rec.get("doc_bytes"):
+                    st.markdown('<div class="action-btn-container">', unsafe_allow_html=True)
+                    if st.button("Doc", key=f"doc_btn_{idx}", help="View Document Proof"):
+                        st.session_state.selected_doc_record = rec
+                        st.rerun()
+                    st.markdown('</div>', unsafe_allow_html=True)
+                else:
+                    st.caption("No Doc")
+
+            with col_act3:
+                st.markdown('<div class="action-btn-container action-btn-container-delete">', unsafe_allow_html=True)
+                if st.button("Delete", key=f"del_btn_{idx}", help="Remove Record"):
+                    records_to_delete.append(idx)
+                st.markdown('</div>', unsafe_allow_html=True)
+
+            st.markdown("<hr style='margin-top:8px; margin-bottom:12px;' />", unsafe_allow_html=True)
 
         if records_to_delete:
             for d_idx in sorted(records_to_delete, reverse=True):
@@ -679,7 +700,8 @@ elif st.session_state.current_page == "StudentDashboard":
         f" **{st.session_state.student_matrix}**)"
     )
 
-    col_out, col_ref = st.columns([1, 4])
+    # Adjacent tight buttons for mobile screens
+    col_out, col_ref, _ = st.columns(["auto", "auto", 1])
     with col_out:
         if st.button("Log Out"):
             st.session_state.student_name = ""
