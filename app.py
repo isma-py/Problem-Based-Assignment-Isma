@@ -308,7 +308,8 @@ def generate_pdf_report(
 
     now_local = get_current_local_datetime()
     meta_text = f"""
-    <b>Lecturer:</b> {lecturer_name} (ID: {lecturer_id})<br/>
+    <b>Lecturer:</b> {lecturer_name}<br/>
+    <b>Lecturer ID:</b> {lecturer_id}<br/>
     <b>Subject:</b> {subject if subject else 'N/A'}<br/>
     <b>Location:</b> {lab if lab else 'N/A'}<br/>
     <b>Generated Date (MYT):</b> {now_local.strftime('%Y-%m-%d %H:%M:%S')}<br/>
@@ -499,8 +500,8 @@ elif st.session_state.current_page == "LecturerLogin":
         login_btn = st.form_submit_button("Log In")
         if login_btn:
             if lec_name_input.strip() and lec_id_input.strip():
-                st.session_state.lecturer_name = lec_name_input
-                st.session_state.lecturer_id = lec_id_input
+                st.session_state.lecturer_name = lec_name_input.strip()
+                st.session_state.lecturer_id = lec_id_input.strip()
                 st.session_state.current_page = "LecturerDashboard"
                 st.rerun()
             else:
@@ -526,9 +527,10 @@ elif st.session_state.current_page == "StudentLogin":
                 and stud_matrix_input.strip()
                 and stud_class_input.strip()
             ):
-                st.session_state.student_name = stud_name_input
-                st.session_state.student_matrix = stud_matrix_input
-                st.session_state.student_class = stud_class_input
+                # Capitalize all student input credentials automatically
+                st.session_state.student_name = stud_name_input.strip().upper()
+                st.session_state.student_matrix = stud_matrix_input.strip().upper()
+                st.session_state.student_class = stud_class_input.strip().upper()
                 st.session_state.current_page = "StudentDashboard"
                 st.rerun()
             else:
@@ -582,44 +584,45 @@ elif st.session_state.current_page == "LecturerDashboard":
         ],
     )
 
-    # 1. ACTION BUTTON AREA WITH SOFT GREEN (LEFT), SOFT RED (RIGHT), AND REFRESH UNDERNEATH
+    # 1. ACTION BUTTON AREA - ALL 3 BUTTONS INSIDE A SINGLE BORDERED FRAME
     btn_container, _ = st.columns([5, 5])
     with btn_container:
-        st.markdown('<div class="session-btn-row">', unsafe_allow_html=True)
-        col_left, col_right = st.columns([1, 1])
-        
-        with col_left:
-            st.markdown('<div class="btn-green">', unsafe_allow_html=True)
-            if st.button("Get Attendance"):
-                if lec_lat is None or lec_lon is None:
-                    st.error("GPS coordinates needed to activate session.")
-                else:
-                    global_store["session_active"] = True
-                    global_store["subject"] = lecturer_subject
-                    global_store["lab"] = lecturer_lab
-                    global_store["lecturer_lat"] = lec_lat
-                    global_store["lecturer_lon"] = lec_lon
-                    global_store["submitted_students"].clear()
-                    st.success(
-                        f"Session activated for {lecturer_subject} at {lecturer_lab}."
-                    )
+        with st.container(border=True):
+            st.markdown('<div class="session-btn-row">', unsafe_allow_html=True)
+            col_left, col_right = st.columns([1, 1])
+            
+            with col_left:
+                st.markdown('<div class="btn-green">', unsafe_allow_html=True)
+                if st.button("Get Attendance"):
+                    if lec_lat is None or lec_lon is None:
+                        st.error("GPS coordinates needed to activate session.")
+                    else:
+                        global_store["session_active"] = True
+                        global_store["subject"] = lecturer_subject
+                        global_store["lab"] = lecturer_lab
+                        global_store["lecturer_lat"] = lec_lat
+                        global_store["lecturer_lon"] = lec_lon
+                        global_store["submitted_students"].clear()
+                        st.success(
+                            f"Session activated for {lecturer_subject} at {lecturer_lab}."
+                        )
+                        st.rerun()
+                st.markdown('</div>', unsafe_allow_html=True)
+
+            with col_right:
+                st.markdown('<div class="btn-red">', unsafe_allow_html=True)
+                if st.button("Close Session", disabled=not global_store["session_active"]):
+                    global_store["session_active"] = False
+                    st.success("Attendance session has been closed.")
                     st.rerun()
+                st.markdown('</div>', unsafe_allow_html=True)
             st.markdown('</div>', unsafe_allow_html=True)
 
-        with col_right:
-            st.markdown('<div class="btn-red">', unsafe_allow_html=True)
-            if st.button("Close Session", disabled=not global_store["session_active"]):
-                global_store["session_active"] = False
-                st.success("Attendance session has been closed.")
+            # Refresh button inside the same frame, underneath both session buttons
+            st.markdown('<div class="btn-refresh">', unsafe_allow_html=True)
+            if st.button("Refresh Attendance Table"):
                 st.rerun()
             st.markdown('</div>', unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
-
-        # Refresh button placed underneath both action buttons
-        st.markdown('<div class="btn-refresh">', unsafe_allow_html=True)
-        if st.button("Refresh Attendance Table"):
-            st.rerun()
-        st.markdown('</div>', unsafe_allow_html=True)
 
     st.markdown("---")
     st.subheader("Attendance Record")
@@ -815,6 +818,7 @@ elif st.session_state.current_page == "StudentDashboard":
                                 "Absent with Medical Certificate / Memo",
                             ],
                         )
+                        # Automatically convert student reason input to uppercase
                         mc_reason_input = st.text_input(
                             "Reason (if applicable):"
                         )
@@ -881,12 +885,13 @@ elif st.session_state.current_page == "StudentDashboard":
 
                             record_data = {
                                 "Timestamp": timestamp_str,
-                                "Name": st.session_state.student_name,
-                                "Matrix": st.session_state.student_matrix,
-                                "Class": st.session_state.student_class,
+                                "Name": st.session_state.student_name.upper(),
+                                "Matrix": st.session_state.student_matrix.upper(),
+                                "Class": st.session_state.student_class.upper(),
                                 "Subject": global_store["subject"],
                                 "Lab": global_store["lab"],
                                 "Status": attendance_status_type,
+                                "Reason": mc_reason_input.strip().upper(),
                                 "has_mc": has_mc_flag,
                                 "File Name": file_name_str,
                                 "image_bytes": img_bytes,
