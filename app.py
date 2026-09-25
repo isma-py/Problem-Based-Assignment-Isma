@@ -4,7 +4,7 @@ import datetime
 import pandas as pd
 import models
 
-# Initialize session state storage for database simulation and authentication
+# Initialize session state variables
 if "attendance_db" not in st.session_state:
     st.session_state.attendance_db = []
 
@@ -17,27 +17,40 @@ if "active_subject" not in st.session_state:
 if "active_lab" not in st.session_state:
     st.session_state.active_lab = ""
 
-if "lecturer_logged_in" not in st.session_state:
-    st.session_state.lecturer_logged_in = False
+if "current_page" not in st.session_state:
+    st.session_state.current_page = "Landing"
 
-if "student_logged_in" not in st.session_state:
-    st.session_state.student_logged_in = False
+if "lecturer_name" not in st.session_state:
+    st.session_state.lecturer_name = ""
 
-if "current_student_name" not in st.session_state:
-    st.session_state.current_student_name = ""
+if "lecturer_id" not in st.session_state:
+    st.session_state.lecturer_id = ""
 
-if "current_student_matrix" not in st.session_state:
-    st.session_state.current_student_matrix = ""
+if "student_name" not in st.session_state:
+    st.session_state.student_name = ""
 
-st.title("Campus Attendance Management System")
-st.write("Secure portal for academic session tracking, attendance verification, and medical exemption logging.")
+if "student_matrix" not in st.session_state:
+    st.session_state.student_matrix = ""
+
+if "show_absence_modal" not in st.session_state:
+    st.session_state.show_absence_modal = False
+
+if "pending_attendance_data" not in st.session_state:
+    st.session_state.pending_attendance_data = None
+
+# Styling helper function for soft-color row highlights
+def colorize_attendance_row(row):
+    """Applies soft green for Present and soft red for Absent rows."""
+    if "Present" in str(row["Status"]):
+        return ['background-color: #d4edda; color: #155724'] * len(row)
+    else:
+        return ['background-color: #f8d7da; color: #721c24'] * len(row)
 
 # ==========================================
 # NETWORK ACCESS VALIDATION (Requirement 4)
 # ==========================================
 st.sidebar.header("Network Security Gateway")
 network_status = st.sidebar.selectbox("Select Network Connection", ["Campus Secure Wi-Fi (Authorized)", "External Public Network (Unauthorized)"])
-
 is_authorized_network = (network_status == "Campus Secure Wi-Fi (Authorized)")
 
 if not is_authorized_network:
@@ -45,157 +58,210 @@ if not is_authorized_network:
     st.stop()
 
 # ==========================================
-# SEPARATE LOGIN GATEWAY (Requirement 0 & 3)
+# PAGE 1: LANDING / SEPARATE LOGIN GATEWAY (Requirement 4)
 # ==========================================
-st.sidebar.markdown("---")
-st.sidebar.header("System Login Portal")
-portal_selection = st.sidebar.radio("Select Portal Access", ["Lecturer Login", "Student Login"])
-
-# ------------------------------------------
-# LECTURER LOGIN & SECTION
-# ------------------------------------------
-if portal_selection == "Lecturer Login":
-    if not st.session_state.lecturer_logged_in:
-        st.subheader("Lecturer Authentication Section")
-        with st.form("lecturer_login_form"):
-            lec_name = st.text_input("Enter Lecturer Name:")
-            lec_id = st.text_input("Enter Lecturer ID:")
-            lec_login_btn = st.form_submit_button("Log In as Lecturer")
+if st.session_state.current_page == "Landing":
+    st.title("Campus Attendance Management System")
+    st.write("Please select your portal to proceed with authentication.")
+    st.markdown("---")
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        st.subheader("Lecturer Portal")
+        st.write("Access control dashboard to trigger attendance sessions and monitor records.")
+        if st.button("Go to Lecturer Login"):
+            st.session_state.current_page = "LecturerLogin"
+            st.rerun()
             
-            if lec_login_btn:
-                try:
-                    if not lec_name.strip() or not lec_id.strip():
-                        raise ValueError("Lecturer Name and ID fields cannot be left empty.")
-                    st.session_state.lecturer_logged_in = True
-                    st.session_state.lecturer_name = lec_name
-                    st.session_state.lecturer_id = lec_id
-                    st.success("Lecturer login successful.")
-                    st.rerun()
-                except ValueError as ve:
-                    st.error(f"Login Validation Error: {ve}")
-    else:
-        st.success(f"Logged in Lecturer: {st.session_state.lecturer_name} (ID: {st.session_state.lecturer_id})")
-        if st.button("Log Out Lecturer"):
-            st.session_state.lecturer_logged_in = False
+    with col2:
+        st.subheader("Student Portal")
+        st.write("Access attendance submission forms during active class sessions.")
+        if st.button("Go to Student Login"):
+            st.session_state.current_page = "StudentLogin"
             st.rerun()
 
-        st.header("Lecturer Control Dashboard")
+# ==========================================
+# PAGE 2: LECTURER LOGIN PAGE
+# ==========================================
+elif st.session_state.current_page == "LecturerLogin":
+    st.title("Lecturer Portal Authentication")
+    if st.button("Back to Main Portal"):
+        st.session_state.current_page = "Landing"
+        st.rerun()
         
-        with st.form("lecturer_session_form"):
-            st.subheader("Configure Class Session Parameters")
-            lecturer_subject = st.selectbox("Select Lecture Subject", ["DFK50083 Python Programming", "DBF50123 Database Systems", "DTN50233 Network Security"])
-            lecturer_lab = st.selectbox("Select Laboratory Location", ["Lab Alpha", "Lab Beta", "Lab Gamma", "Networking Lab 1"])
-            
-            activate_btn = st.form_submit_button("Get Attendance (Activate Session)")
-            
-            if activate_btn:
-                st.session_state.session_active = True
-                st.session_state.active_subject = lecturer_subject
-                st.session_state.active_lab = lecturer_lab
-                st.success(f"Session activated for {lecturer_subject} at {lecturer_lab}. Notification sent to student portals.")
-
-        st.markdown("---")
-        # Requirement 1: Section title changed to Attendance
-        st.subheader("Attendance")
+    with st.form("lecturer_login_form"):
+        lec_name_input = st.text_input("Enter Lecturer Name:")
+        lec_id_input = st.text_input("Enter Lecturer ID:")
+        login_btn = st.form_submit_button("Log In")
         
-        if st.session_state.attendance_db:
-            st.write(f"Total Subscriptions Logged: {len(st.session_state.attendance_db)}")
-            mc_count = sum(1 for item in st.session_state.attendance_db if item.get("has_mc"))
-            st.metric(label="Total Records with Medical Certificates / Memos", value=mc_count)
-            
-            # Requirement 2: Fixed size, scrollable table layout using Pandas dataframe with height constraint
-            df_records = pd.DataFrame(st.session_state.attendance_db)
-            st.dataframe(
-                df_records[['timestamp', 'name', 'matrix', 'subject', 'lab', 'status', 'file_name']],
-                height=300,
-                use_container_width=True
-            )
-        else:
-            st.info("No attendance records found in the database for the current session.")
+        if login_btn:
+            try:
+                if not lec_name_input.strip() or not lec_id_input.strip():
+                    raise ValueError("Lecturer Name and ID cannot be empty.")
+                st.session_state.lecturer_name = lec_name_input
+                st.session_state.lecturer_id = lec_id_input
+                st.session_state.current_page = "LecturerDashboard"
+                st.rerun()
+            except ValueError as ve:
+                st.error(f"Login Validation Error: {ve}")
 
-# ------------------------------------------
-# STUDENT LOGIN & SECTION
-# ------------------------------------------
-elif portal_selection == "Student Login":
-    if not st.session_state.student_logged_in:
-        st.subheader("Student Authentication Section")
-        with st.form("student_login_form"):
-            stud_name = st.text_input("Enter Full Name:")
-            stud_matrix = st.text_input("Enter Matrix Number:")
-            stud_login_btn = st.form_submit_button("Log In as Student")
-            
-            if stud_login_btn:
-                try:
-                    if not stud_name.strip() or not stud_matrix.strip():
-                        raise ValueError("Student Name and Matrix Number cannot be left empty.")
-                    st.session_state.student_logged_in = True
-                    st.session_state.current_student_name = stud_name
-                    st.session_state.current_student_matrix = stud_matrix
-                    st.success("Student login successful.")
-                    st.rerun()
-                except ValueError as ve:
-                    st.error(f"Login Validation Error: {ve}")
+# ==========================================
+# PAGE 3: STUDENT LOGIN PAGE
+# ==========================================
+elif st.session_state.current_page == "StudentLogin":
+    st.title("Student Portal Authentication")
+    if st.button("Back to Main Portal"):
+        st.session_state.current_page = "Landing"
+        st.rerun()
+        
+    with st.form("student_login_form"):
+        stud_name_input = st.text_input("Enter Full Name:")
+        stud_matrix_input = st.text_input("Enter Matrix Number:")
+        stud_login_btn = st.form_submit_button("Log In")
+        
+        if stud_login_btn:
+            try:
+                if not stud_name_input.strip() or not stud_matrix_input.strip():
+                    raise ValueError("Student Name and Matrix Number cannot be empty.")
+                st.session_state.student_name = stud_name_input
+                st.session_state.student_matrix = stud_matrix_input
+                st.session_state.current_page = "StudentDashboard"
+                st.rerun()
+            except ValueError as ve:
+                st.error(f"Login Validation Error: {ve}")
+
+# ==========================================
+# PAGE 4: LECTURER DASHBOARD
+# ==========================================
+elif st.session_state.current_page == "LecturerDashboard":
+    st.title("Lecturer Control Dashboard")
+    st.write(f"Logged in Lecturer: {st.session_state.lecturer_name} (ID: {st.session_state.lecturer_id})")
+    
+    if st.button("Log Out"):
+        st.session_state.current_page = "Landing"
+        st.rerun()
+        
+    with st.form("lecturer_session_form"):
+        st.subheader("Configure Class Session Parameters")
+        lecturer_subject = st.selectbox("Select Lecture Subject", ["DFK50083 Python Programming", "DBF50123 Database Systems", "DTN50233 Network Security"])
+        lecturer_lab = st.selectbox("Select Laboratory Location", ["Lab Alpha", "Lab Beta", "Lab Gamma", "Networking Lab 1"])
+        
+        activate_btn = st.form_submit_button("Get Attendance (Activate Session)")
+        
+        if activate_btn:
+            st.session_state.session_active = True
+            st.session_state.active_subject = lecturer_subject
+            st.session_state.active_lab = lecturer_lab
+            st.success(f"Session activated for {lecturer_subject} at {lecturer_lab}. Notification sent to student portals.")
+
+    st.markdown("---")
+    st.subheader("Attendance")
+    
+    if st.session_state.attendance_db:
+        st.write(f"Total Subscriptions Logged: {len(st.session_state.attendance_db)}")
+        mc_count = sum(1 for item in st.session_state.attendance_db if item.get("has_mc"))
+        st.metric(label="Total Records with Medical Certificates / Memos", value=mc_count)
+        
+        # Fixed size, scrollable table with a larger height (e.g., 450px)
+        df_records = pd.DataFrame(st.session_state.attendance_db)
+        styled_df = df_records[['Timestamp', 'Name', 'Matrix', 'Subject', 'Lab', 'Status', 'File Name']].style.apply(colorize_attendance_row, axis=1)
+        
+        st.dataframe(styled_df, height=450, use_container_width=True)
     else:
-        st.success(f"Logged in as: {st.session_state.current_student_name} (Matrix: {st.session_state.current_student_matrix})")
-        if st.button("Log Out Student"):
-            st.session_state.student_logged_in = False
-            st.rerun()
+        st.info("No attendance records found in the database for the current session.")
 
-        st.header("Student Attendance Portal")
+# ==========================================
+# PAGE 5: STUDENT DASHBOARD
+# ==========================================
+elif st.session_state.current_page == "StudentDashboard":
+    st.title("Student Attendance Portal")
+    st.write(f"Logged in Student: {st.session_state.student_name} (Matrix: {st.session_state.student_matrix})")
+    
+    if st.button("Log Out"):
+        st.session_state.current_page = "Landing"
+        st.rerun()
         
-        if st.session_state.session_active:
-            st.info(f"Active Notification Reminder: Lecturer has initiated attendance for {st.session_state.active_subject} in {st.session_state.active_lab}.")
+    if st.session_state.session_active:
+        st.info(f"Active Notification Reminder: Lecturer has initiated attendance for {st.session_state.active_subject} in {st.session_state.active_lab}.")
+        
+        with st.form("student_attendance_form"):
+            st.subheader("Submit Attendance Details")
             
-            with st.form("student_attendance_form"):
-                st.subheader("Submit Attendance Details")
-                
-                attendance_date = st.date_input("Select Date", value=datetime.date.today())
-                attendance_time = st.time_input("Select Time", value=datetime.datetime.now().time())
-                
-                attendance_status_type = st.selectbox("Attendance Status", ["Present", "Absent with Medical Certificate / Memo"])
-                mc_reason_input = st.text_input("Reason for Absence / Medical Condition (if applicable):")
-                
-                uploaded_file = st.file_uploader("Upload Medical Certificate or Absence Memo (PDF/Image)", type=["pdf", "png", "jpg"])
-                
-                submit_attendance_btn = st.form_submit_button("Submit Attendance Record")
-                
-                if submit_attendance_btn:
-                    try:
-                        if attendance_status_type == "Absent with Medical Certificate / Memo" and not mc_reason_input.strip():
-                            raise ValueError("Please provide a reason or details for your medical certificate/memo.")
-                        
-                        has_mc_flag = (attendance_status_type == "Absent with Medical Certificate / Memo")
-                        file_name_str = uploaded_file.name if uploaded_file else "No File Attached"
-                        
-                        # Instantiate subclass object implementing inheritance
+            attendance_date = st.date_input("Select Date", value=datetime.date.today())
+            attendance_time = st.time_input("Select Time", value=datetime.datetime.now().time())
+            
+            attendance_status_type = st.selectbox("Attendance Status", ["Present", "Absent with Medical Certificate / Memo"])
+            mc_reason_input = st.text_input("Reason for Absence / Medical Condition (if applicable):")
+            uploaded_file = st.file_uploader("Upload Medical Certificate or Absence Memo (PDF/Image)", type=["pdf", "png", "jpg"])
+            
+            submit_attempt_btn = st.form_submit_button("Submit Attendance Record")
+            
+            if submit_attempt_btn:
+                try:
+                    if attendance_status_type == "Absent with Medical Certificate / Memo" and not mc_reason_input.strip():
+                        raise ValueError("Please provide a reason or details for your medical certificate/memo.")
+                    
+                    has_mc_flag = (attendance_status_type == "Absent with Medical Certificate / Memo")
+                    file_name_str = uploaded_file.name if uploaded_file else "No File Attached"
+                    
+                    # Modal trigger condition: if student is submitting as absent but didn't upload a file
+                    if attendance_status_type == "Absent with Medical Certificate / Memo" and file_name_str == "No File Attached":
+                        st.session_state.show_absence_modal = True
+                        st.session_state.pending_attendance_data = {
+                            "Timestamp": str(f"{attendance_date} {attendance_time}"),
+                            "Name": st.session_state.student_name,
+                            "Matrix": st.session_state.student_matrix,
+                            "Subject": st.session_state.active_subject,
+                            "Lab": st.session_state.active_lab,
+                            "Status": attendance_status_type,
+                            "summary": f"Student: {st.session_state.student_name} | Matrix: {st.session_state.student_matrix} - Absent with No Evidence",
+                            "has_mc": False,
+                            "File Name": "No File Attached"
+                        }
+                    else:
                         record_obj = models.VerifiedAttendanceRecord(
-                            student_name=st.session_state.current_student_name,
-                            matrix_no=st.session_state.current_student_matrix,
+                            student_name=st.session_state.student_name,
+                            matrix_no=st.session_state.student_matrix,
                             lab_name=st.session_state.active_lab,
                             subject_name=st.session_state.active_subject,
                             has_mc=has_mc_flag,
                             mc_reason=mc_reason_input if has_mc_flag else "None"
                         )
                         
-                        timestamp_str = f"{attendance_date} {attendance_time}"
                         record_data = {
-                            "timestamp": str(timestamp_str),
-                            "name": st.session_state.current_student_name,
-                            "matrix": st.session_state.current_student_matrix,
-                            "subject": st.session_state.active_subject,
-                            "lab": st.session_state.active_lab,
-                            "status": attendance_status_type,
+                            "Timestamp": str(f"{attendance_date} {attendance_time}"),
+                            "Name": st.session_state.student_name,
+                            "Matrix": st.session_state.student_matrix,
+                            "Subject": st.session_state.active_subject,
+                            "Lab": st.session_state.active_lab,
+                            "Status": attendance_status_type,
                             "summary": record_obj.process_record_summary(),
                             "has_mc": has_mc_flag,
-                            "file_name": file_name_str
+                            "File Name": file_name_str
                         }
                         st.session_state.attendance_db.append(record_data)
-                        
                         st.success("Attendance submitted and recorded into the database successfully.")
                         
-                    except ValueError as ve:
-                        st.error(f"Validation Error: {ve}")
-                    except Exception as e:
-                        st.error(f"An unexpected error occurred during processing: {e}")
-        else:
-            st.warning("Attendance session is currently closed. Please wait until the lecturer triggers the attendance session reminder.")
+                except ValueError as ve:
+                    st.error(f"Validation Error: {ve}")
+                except Exception as e:
+                    st.error(f"An unexpected error occurred during processing: {e}")
+        
+        # Modal Warning implementation using Streamlit containers/warnings
+        if st.session_state.show_absence_modal:
+            st.warning("Warning Modal Reminder: You did not upload a medical certificate or memo. If you proceed, this will be counted as absence with no evidence. You can still confirm submission below.")
+            col_m1, col_m2 = st.columns(2)
+            with col_m1:
+                if st.button("Confirm Submit Without Evidence"):
+                    st.session_state.attendance_db.append(st.session_state.pending_attendance_data)
+                    st.session_state.show_absence_modal = False
+                    st.session_state.pending_attendance_data = None
+                    st.success("Absence recorded successfully without attached evidence.")
+                    st.rerun()
+            with col_m2:
+                if st.button("Cancel & Go Back to Upload"):
+                    st.session_state.show_absence_modal = False
+                    st.session_state.pending_attendance_data = None
+                    st.rerun()
+    else:
+        st.warning("Attendance session is currently closed. Please wait until the lecturer triggers the attendance session reminder.")

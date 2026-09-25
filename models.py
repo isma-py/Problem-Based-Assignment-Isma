@@ -42,5 +42,5 @@ class VerifiedAttendanceRecord(BaseAttendanceRecord):
     def process_record_summary(self) -> str:
         """Overridden method incorporating subclass attributes."""
         base_summary = super().process_record_summary()
-        mc_status = f"Verified MC/Memo Attached: {self.mc_reason}" if self.has_mc else "Standard Present Record"
+        mc_status = f"Verified MC/Memo Attached: {self.mc_reason}" if self.has_mc else "Absent with No Evidence"
         return f"{base_summary} - Status: {mc_status}"
