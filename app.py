@@ -17,6 +17,9 @@ if "active_subject" not in st.session_state:
 if "active_lab" not in st.session_state:
     st.session_state.active_lab = ""
 
+if "lecturer_ip" not in st.session_state:
+    st.session_state.lecturer_ip = ""
+
 if "current_page" not in st.session_state:
     st.session_state.current_page = "Landing"
 
@@ -38,6 +41,21 @@ if "show_absence_modal" not in st.session_state:
 if "pending_attendance_data" not in st.session_state:
     st.session_state.pending_attendance_data = None
 
+# Helper function to get real client IP from headers
+def get_client_ip():
+    headers = st.context.headers
+    ip = headers.get("X-Forwarded-For", headers.get("Remote-Addr", "127.0.0.1"))
+    if ip and "," in ip:
+        ip = ip.split(",")[0].strip()
+    return ip
+
+# Helper function to extract network subnet prefix (e.g., first 3 octets for local net matching)
+def get_subnet(ip_address):
+    parts = ip_address.split(".")
+    if len(parts) >= 3:
+        return ".".join(parts[:3])
+    return ip_address
+
 # Styling helper function for soft-color row highlights
 def colorize_attendance_row(row):
     """Applies soft green for Present and soft red for Absent rows."""
@@ -47,18 +65,7 @@ def colorize_attendance_row(row):
         return ['background-color: #f8d7da; color: #721c24'] * len(row)
 
 # ==========================================
-# NETWORK ACCESS VALIDATION (Requirement 4)
-# ==========================================
-st.sidebar.header("Network Security Gateway")
-network_status = st.sidebar.selectbox("Select Network Connection", ["Campus Secure Wi-Fi (Authorized)", "External Public Network (Unauthorized)"])
-is_authorized_network = (network_status == "Campus Secure Wi-Fi (Authorized)")
-
-if not is_authorized_network:
-    st.error("Network Access Restricted: You must be connected to the authorized campus network to access active session features.")
-    st.stop()
-
-# ==========================================
-# PAGE 1: LANDING / SEPARATE LOGIN GATEWAY (Requirement 4)
+# PAGE 1: LANDING / SEPARATE LOGIN GATEWAY
 # ==========================================
 if st.session_state.current_page == "Landing":
     st.title("Campus Attendance Management System")
@@ -149,10 +156,12 @@ elif st.session_state.current_page == "LecturerDashboard":
         activate_btn = st.form_submit_button("Get Attendance (Activate Session)")
         
         if activate_btn:
+            # Capture the lecturer's current network IP address upon session activation
+            st.session_state.lecturer_ip = get_client_ip()
             st.session_state.session_active = True
             st.session_state.active_subject = lecturer_subject
             st.session_state.active_lab = lecturer_lab
-            st.success(f"Session activated for {lecturer_subject} at {lecturer_lab}. Notification sent to student portals.")
+            st.success(f"Session activated for {lecturer_subject} at {lecturer_lab} (Host Network IP Recorded: {st.session_state.lecturer_ip}).")
 
     st.markdown("---")
     st.subheader("Attendance")
@@ -162,7 +171,7 @@ elif st.session_state.current_page == "LecturerDashboard":
         mc_count = sum(1 for item in st.session_state.attendance_db if item.get("has_mc"))
         st.metric(label="Total Records with Medical Certificates / Memos", value=mc_count)
         
-        # Fixed size, scrollable table with a larger height (e.g., 450px)
+        # Fixed size, scrollable table with an increased height (450px)
         df_records = pd.DataFrame(st.session_state.attendance_db)
         styled_df = df_records[['Timestamp', 'Name', 'Matrix', 'Subject', 'Lab', 'Status', 'File Name']].style.apply(colorize_attendance_row, axis=1)
         
@@ -181,87 +190,99 @@ elif st.session_state.current_page == "StudentDashboard":
         st.session_state.current_page = "Landing"
         st.rerun()
         
+    # Real Network Subnet Verification Check
+    student_ip = get_client_ip()
+    
     if st.session_state.session_active:
-        st.info(f"Active Notification Reminder: Lecturer has initiated attendance for {st.session_state.active_subject} in {st.session_state.active_lab}.")
+        # Verify if student is on the exact same network subnet as the lecturer
+        lecturer_subnet = get_subnet(st.session_state.lecturer_ip)
+        student_subnet = get_subnet(student_ip)
         
-        with st.form("student_attendance_form"):
-            st.subheader("Submit Attendance Details")
-            
-            attendance_date = st.date_input("Select Date", value=datetime.date.today())
-            attendance_time = st.time_input("Select Time", value=datetime.datetime.now().time())
-            
-            attendance_status_type = st.selectbox("Attendance Status", ["Present", "Absent with Medical Certificate / Memo"])
-            mc_reason_input = st.text_input("Reason for Absence / Medical Condition (if applicable):")
-            uploaded_file = st.file_uploader("Upload Medical Certificate or Absence Memo (PDF/Image)", type=["pdf", "png", "jpg"])
-            
-            submit_attempt_btn = st.form_submit_button("Submit Attendance Record")
-            
-            if submit_attempt_btn:
-                try:
-                    if attendance_status_type == "Absent with Medical Certificate / Memo" and not mc_reason_input.strip():
-                        raise ValueError("Please provide a reason or details for your medical certificate/memo.")
-                    
-                    has_mc_flag = (attendance_status_type == "Absent with Medical Certificate / Memo")
-                    file_name_str = uploaded_file.name if uploaded_file else "No File Attached"
-                    
-                    # Modal trigger condition: if student is submitting as absent but didn't upload a file
-                    if attendance_status_type == "Absent with Medical Certificate / Memo" and file_name_str == "No File Attached":
-                        st.session_state.show_absence_modal = True
-                        st.session_state.pending_attendance_data = {
-                            "Timestamp": str(f"{attendance_date} {attendance_time}"),
-                            "Name": st.session_state.student_name,
-                            "Matrix": st.session_state.student_matrix,
-                            "Subject": st.session_state.active_subject,
-                            "Lab": st.session_state.active_lab,
-                            "Status": attendance_status_type,
-                            "summary": f"Student: {st.session_state.student_name} | Matrix: {st.session_state.student_matrix} - Absent with No Evidence",
-                            "has_mc": False,
-                            "File Name": "No File Attached"
-                        }
-                    else:
-                        record_obj = models.VerifiedAttendanceRecord(
-                            student_name=st.session_state.student_name,
-                            matrix_no=st.session_state.student_matrix,
-                            lab_name=st.session_state.active_lab,
-                            subject_name=st.session_state.active_subject,
-                            has_mc=has_mc_flag,
-                            mc_reason=mc_reason_input if has_mc_flag else "None"
-                        )
-                        
-                        record_data = {
-                            "Timestamp": str(f"{attendance_date} {attendance_time}"),
-                            "Name": st.session_state.student_name,
-                            "Matrix": st.session_state.student_matrix,
-                            "Subject": st.session_state.active_subject,
-                            "Lab": st.session_state.active_lab,
-                            "Status": attendance_status_type,
-                            "summary": record_obj.process_record_summary(),
-                            "has_mc": has_mc_flag,
-                            "File Name": file_name_str
-                        }
-                        st.session_state.attendance_db.append(record_data)
-                        st.success("Attendance submitted and recorded into the database successfully.")
-                        
-                except ValueError as ve:
-                    st.error(f"Validation Error: {ve}")
-                except Exception as e:
-                    st.error(f"An unexpected error occurred during processing: {e}")
+        is_same_network = (lecturer_subnet == student_subnet) or (st.session_state.lecturer_ip in ["127.0.0.1", "localhost", student_ip])
         
-        # Modal Warning implementation using Streamlit containers/warnings
-        if st.session_state.show_absence_modal:
-            st.warning("Warning Modal Reminder: You did not upload a medical certificate or memo. If you proceed, this will be counted as absence with no evidence. You can still confirm submission below.")
-            col_m1, col_m2 = st.columns(2)
-            with col_m1:
-                if st.button("Confirm Submit Without Evidence"):
-                    st.session_state.attendance_db.append(st.session_state.pending_attendance_data)
-                    st.session_state.show_absence_modal = False
-                    st.session_state.pending_attendance_data = None
-                    st.success("Absence recorded successfully without attached evidence.")
-                    st.rerun()
-            with col_m2:
-                if st.button("Cancel & Go Back to Upload"):
-                    st.session_state.show_absence_modal = False
-                    st.session_state.pending_attendance_data = None
-                    st.rerun()
+        if not is_same_network:
+            st.error("Network Verification Failed: You are not connected to the same local network as the lecturer. Attendance notification and submission are locked.")
+        else:
+            st.info(f"Network Verified: Connected to lecturer network segment. Active session for {st.session_state.active_subject} in {st.session_state.active_lab}.")
+            
+            with st.form("student_attendance_form"):
+                st.subheader("Submit Attendance Details")
+                
+                attendance_date = st.date_input("Select Date", value=datetime.date.today())
+                attendance_time = st.time_input("Select Time", value=datetime.datetime.now().time())
+                
+                attendance_status_type = st.selectbox("Attendance Status", ["Present", "Absent with Medical Certificate / Memo"])
+                mc_reason_input = st.text_input("Reason for Absence / Medical Condition (if applicable):")
+                uploaded_file = st.file_uploader("Upload Medical Certificate or Absence Memo (PDF/Image)", type=["pdf", "png", "jpg"])
+                
+                submit_attempt_btn = st.form_submit_button("Submit Attendance Record")
+                
+                if submit_attempt_btn:
+                    try:
+                        if attendance_status_type == "Absent with Medical Certificate / Memo" and not mc_reason_input.strip():
+                            raise ValueError("Please provide a reason or details for your medical certificate/memo.")
+                        
+                        has_mc_flag = (attendance_status_type == "Absent with Medical Certificate / Memo")
+                        file_name_str = uploaded_file.name if uploaded_file else "No File Attached"
+                        
+                        # Modal trigger condition: student submitting absence with no uploaded file evidence
+                        if attendance_status_type == "Absent with Medical Certificate / Memo" and file_name_str == "No File Attached":
+                            st.session_state.show_absence_modal = True
+                            st.session_state.pending_attendance_data = {
+                                "Timestamp": str(f"{attendance_date} {attendance_time}"),
+                                "Name": st.session_state.student_name,
+                                "Matrix": st.session_state.student_matrix,
+                                "Subject": st.session_state.active_subject,
+                                "Lab": st.session_state.active_lab,
+                                "Status": attendance_status_type,
+                                "summary": f"Student: {st.session_state.student_name} | Matrix: {st.session_state.student_matrix} - Absent with No Evidence",
+                                "has_mc": False,
+                                "File Name": "No File Attached"
+                            }
+                        else:
+                            record_obj = models.VerifiedAttendanceRecord(
+                                student_name=st.session_state.student_name,
+                                matrix_no=st.session_state.student_matrix,
+                                lab_name=st.session_state.active_lab,
+                                subject_name=st.session_state.active_subject,
+                                has_mc=has_mc_flag,
+                                mc_reason=mc_reason_input if has_mc_flag else "None"
+                            )
+                            
+                            record_data = {
+                                "Timestamp": str(f"{attendance_date} {attendance_time}"),
+                                "Name": st.session_state.student_name,
+                                "Matrix": st.session_state.student_matrix,
+                                "Subject": st.session_state.active_subject,
+                                "Lab": st.session_state.active_lab,
+                                "Status": attendance_status_type,
+                                "summary": record_obj.process_record_summary(),
+                                "has_mc": has_mc_flag,
+                                "File Name": file_name_str
+                            }
+                            st.session_state.attendance_db.append(record_data)
+                            st.success("Attendance submitted and recorded into the database successfully.")
+                            
+                    except ValueError as ve:
+                        st.error(f"Validation Error: {ve}")
+                    except Exception as e:
+                        st.error(f"An unexpected error occurred during processing: {e}")
+            
+            # Modal Warning implementation using Streamlit containers/warnings
+            if st.session_state.show_absence_modal:
+                st.warning("Warning Modal Reminder: You did not upload a medical certificate or memo. If you proceed, this will be counted as absence with no evidence. You can still confirm submission below.")
+                col_m1, col_m2 = st.columns(2)
+                with col_m1:
+                    if st.button("Confirm Submit Without Evidence"):
+                        st.session_state.attendance_db.append(st.session_state.pending_attendance_data)
+                        st.session_state.show_absence_modal = False
+                        st.session_state.pending_attendance_data = None
+                        st.success("Absence recorded successfully without attached evidence.")
+                        st.rerun()
+                with col_m2:
+                    if st.button("Cancel & Go Back to Upload"):
+                        st.session_state.show_absence_modal = False
+                        st.session_state.pending_attendance_data = None
+                        st.rerun()
     else:
         st.warning("Attendance session is currently closed. Please wait until the lecturer triggers the attendance session reminder.")
