@@ -1,63 +1,45 @@
 # models.py
 
-# ==========================================
-# FUNCTIONS (Requirement A)
-# ==========================================
-def calculate_attendance_percentage(attended: int, total: int) -> float:
+def calculate_attendance_rate(total_present: int, total_classes: int) -> float:
     """Performs data processing: Calculates attendance percentage."""
-    if total == 0:
+    if total_classes == 0:
         return 0.0
-    return (attended / total) * 100.0
+    return (total_present / total_classes) * 100.0
 
-def evaluate_attendance_status(percentage: float) -> str:
-    """Performs decision-making/result-generation based on attendance percentage."""
-    if percentage >= 80.0:
-        return "Eligible for Final Exam (Good Standing)."
-    elif percentage >= 60.0:
-        return "Conditional Eligibility (Warning: Below 80%)."
+def evaluate_standing(rate: float) -> str:
+    """Performs decision-making: Evaluates attendance compliance status."""
+    if rate >= 80.0:
+        return "Compliant - Full Attendance Standing"
+    elif rate >= 60.0:
+        return "Warning - Attendance Below Optimal Threshold"
     else:
-        return "Barred from Final Exam (Critical Attendance Deficit)."
+        return "Non-Compliant - Action Required"
 
-# ==========================================
-# CLASS & OBJECT IMPLEMENTATION (Requirement B)
-# ==========================================
-class AttendanceTracker:
-    """Base class representing a student attendance record with 4 attributes and 2 methods."""
-    
-    def __init__(self, student_name: str, student_id: str, attended_classes: int, total_classes: int):
-        # Minimum FOUR (4) attributes
+class BaseAttendanceRecord:
+    """Base class containing four attributes and two processing methods."""
+    def __init__(self, student_name: str, matrix_no: str, lab_name: str, subject_name: str):
         self.student_name = student_name
-        self.student_id = student_id
-        self.attended_classes = attended_classes
-        self.total_classes = total_classes
+        self.matrix_no = matrix_no
+        self.lab_name = lab_name
+        self.subject_name = subject_name
 
-    def calculate_percentage(self) -> float:
-        """Method 1: Performs calculation and data processing."""
-        if self.total_classes == 0:
-            return 0.0
-        return (self.attended_classes / self.total_classes) * 100.0
+    def process_record_summary(self) -> str:
+        """Method 1: Processes and formats basic record information."""
+        return f"Student: {self.student_name} | Matrix: {self.matrix_no} | Subject: {self.subject_name} ({self.lab_name})"
 
-    def get_student_info(self) -> str:
-        """Method 2: Returns a summary string of the student details."""
-        return f"Student Name: {self.student_name} | ID: {self.student_id}"
+    def calculate_metrics(self) -> int:
+        """Method 2: Performs a data processing calculation on attributes."""
+        return len(self.matrix_no) * 10
 
-# ==========================================
-# INHERITANCE IMPLEMENTATION (Requirement D)
-# ==========================================
-class ParticipatingStudent(AttendanceTracker):
-    """Subclass inheriting from AttendanceTracker with extra participation features."""
-    
-    def __init__(self, student_name: str, student_id: str, attended_classes: int, total_classes: int, extra_bonus_classes: int):
-        # Inherit parent attributes using super()
-        super().__init__(student_name, student_id, attended_classes, total_classes)
-        # Additional/modified feature in the subclass
-        self.extra_bonus_classes = extra_bonus_classes
+class VerifiedAttendanceRecord(BaseAttendanceRecord):
+    """Subclass demonstrating inheritance with a modified feature (MC tracking)."""
+    def __init__(self, student_name: str, matrix_no: str, lab_name: str, subject_name: str, has_mc: bool, mc_reason: str):
+        super().__init__(student_name, matrix_no, lab_name, subject_name)
+        self.has_mc = has_mc
+        self.mc_reason = mc_reason
 
-    def calculate_percentage(self) -> float:
-        """Overridden method: Includes bonus classes credited for active club/extracurricular participation."""
-        effective_attended = self.attended_classes + self.extra_bonus_classes
-        if effective_attended > self.total_classes:
-            effective_attended = self.total_classes
-        if self.total_classes == 0:
-            return 0.0
-        return (effective_attended / self.total_classes) * 100.0
+    def process_record_summary(self) -> str:
+        """Overridden method incorporating subclass attributes."""
+        base_summary = super().process_record_summary()
+        mc_status = f"Verified MC/Memo Attached: {self.mc_reason}" if self.has_mc else "Standard Present Record"
+        return f"{base_summary} - Status: {mc_status}"
