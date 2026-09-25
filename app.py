@@ -79,103 +79,6 @@ st.markdown(
         color: #334155 !important;
     }
 
-    /* Tight 3px Gap Row Layout for Session Action Buttons */
-    .session-btn-row {
-        display: flex !important;
-        gap: 3px !important;
-        width: 100% !important;
-    }
-    .session-btn-row > div {
-        flex: 1 !important;
-    }
-
-    /* Custom Soft Green Session Button */
-    .btn-green .stButton > button {
-        background-color: #22C55E !important;
-        color: #FFFFFF !important;
-        border: 1px solid #16A34A !important;
-        font-weight: 600 !important;
-        border-radius: 6px !important;
-        width: 100% !important;
-    }
-    .btn-green .stButton > button:hover {
-        background-color: #16A34A !important;
-        border-color: #15803D !important;
-    }
-
-    /* Custom Soft Red Session Button */
-    .btn-red .stButton > button {
-        background-color: #EF4444 !important;
-        color: #FFFFFF !important;
-        border: 1px solid #DC2626 !important;
-        font-weight: 600 !important;
-        border-radius: 6px !important;
-        width: 100% !important;
-    }
-    .btn-red .stButton > button:hover {
-        background-color: #DC2626 !important;
-        border-color: #B91C1C !important;
-    }
-
-    /* Full-width Refresh Button Styling */
-    .btn-refresh .stButton > button {
-        width: 100% !important;
-        margin-top: 6px !important;
-        border-radius: 6px !important;
-        background-color: #F1F5F9 !important;
-        color: #334155 !important;
-        border: 1px solid #CBD5E1 !important;
-    }
-
-    /* Fixed Height & Compact Scrollable Table Container */
-    div[data-testid="stVerticalBlockBorderWrapper"]:has(.scrollable-marker) {
-        max-height: 320px !important;
-        overflow-y: auto !important;
-        padding-right: 4px !important;
-        border: 1px solid #E2E8F0;
-        border-radius: 8px;
-        background-color: #FFFFFF;
-        padding: 8px 12px !important;
-    }
-
-    /* Custom Scrollbar Styling */
-    div[data-testid="stVerticalBlockBorderWrapper"]:has(.scrollable-marker)::-webkit-scrollbar {
-        width: 6px;
-    }
-    div[data-testid="stVerticalBlockBorderWrapper"]:has(.scrollable-marker)::-webkit-scrollbar-track {
-        background: #F1F5F9;
-        border-radius: 4px;
-    }
-    div[data-testid="stVerticalBlockBorderWrapper"]:has(.scrollable-marker)::-webkit-scrollbar-thumb {
-        background: #CBD5E1;
-        border-radius: 4px;
-    }
-
-    /* Fixed Compact Action Buttons in Table */
-    .action-btn-wrap .stButton > button {
-        width: 58px !important;
-        min-width: 58px !important;
-        max-width: 58px !important;
-        height: 26px !important;
-        min-height: 26px !important;
-        font-size: 0.75rem !important;
-        padding: 0px 2px !important;
-        margin: 0 !important;
-        border-radius: 4px !important;
-        line-height: 1 !important;
-    }
-
-    /* Delete Button Specific Styling */
-    .action-btn-del .stButton > button {
-        background-color: #FEF2F2 !important;
-        color: #DC2626 !important;
-        border: 1px solid #FCA5A5 !important;
-    }
-    .action-btn-del .stButton > button:hover {
-        background-color: #FEE2E2 !important;
-        border-color: #EF4444 !important;
-    }
-
     [data-testid="stMetricValue"] {
         color: #4F46E5;
         font-weight: 600;
@@ -367,60 +270,9 @@ if "show_absence_modal" not in st.session_state:
     st.session_state.show_absence_modal = False
 if "pending_attendance_record" not in st.session_state:
     st.session_state.pending_attendance_record = None
-if "selected_image_record" not in st.session_state:
-    st.session_state.selected_image_record = None
-if "selected_doc_record" not in st.session_state:
-    st.session_state.selected_doc_record = None
 
 
-# Dialog Modals
-@st.dialog("Student Facial Capture")
-def show_student_image_modal():
-    rec = st.session_state.selected_image_record
-    if rec:
-        st.write(f"**Student:** {rec.get('Name')} ({rec.get('Matrix')})")
-        st.write(f"**Class:** {rec.get('Class', 'N/A')}")
-        st.write(f"**Submitted At (MYT):** {rec.get('Timestamp')}")
-        if rec.get("image_bytes"):
-            st.image(
-                rec["image_bytes"],
-                caption="Camera Facial Capture Verification",
-                use_container_width=True,
-            )
-        else:
-            st.warning("No camera image found for this student.")
-
-
-@st.dialog("Medical Certificate / Document Attachment")
-def show_document_modal():
-    rec = st.session_state.selected_doc_record
-    if rec:
-        st.write(f"**Student:** {rec.get('Name')} ({rec.get('Matrix')})")
-        st.write(f"**Class:** {rec.get('Class', 'N/A')}")
-        st.write(f"**Document Name:** {rec.get('doc_name', 'Attachment')}")
-
-        doc_bytes = rec.get("doc_bytes")
-        doc_type = rec.get("doc_type", "")
-
-        if doc_bytes:
-            if "pdf" in doc_type.lower():
-                st.info("PDF Document Preview Available for Download below:")
-                st.download_button(
-                    label="Download Document File",
-                    data=doc_bytes,
-                    file_name=rec.get("doc_name", "Medical_Certificate.pdf"),
-                    mime="application/pdf",
-                )
-            else:
-                st.image(
-                    doc_bytes,
-                    caption="Uploaded Document Proof",
-                    use_container_width=True,
-                )
-        else:
-            st.warning("No document attachment found for this record.")
-
-
+# Dialog Modal
 @st.dialog("Medical Certificate / Absence Confirmation")
 def confirm_absence_submission():
     st.info("Medical Certificate / Memo Notice")
@@ -456,14 +308,6 @@ def confirm_absence_submission():
 
 if st.session_state.show_absence_modal:
     confirm_absence_submission()
-
-if st.session_state.selected_image_record:
-    show_student_image_modal()
-    st.session_state.selected_image_record = None
-
-if st.session_state.selected_doc_record:
-    show_document_modal()
-    st.session_state.selected_doc_record = None
 
 # ==========================================
 # PAGE 1: LANDING
@@ -527,7 +371,6 @@ elif st.session_state.current_page == "StudentLogin":
                 and stud_matrix_input.strip()
                 and stud_class_input.strip()
             ):
-                # Capitalize all student input credentials automatically
                 st.session_state.student_name = stud_name_input.strip().upper()
                 st.session_state.student_matrix = stud_matrix_input.strip().upper()
                 st.session_state.student_class = stud_class_input.strip().upper()
@@ -584,45 +427,33 @@ elif st.session_state.current_page == "LecturerDashboard":
         ],
     )
 
-    # 1. ACTION BUTTON AREA - ALL 3 BUTTONS INSIDE A SINGLE BORDERED FRAME
-    btn_container, _ = st.columns([5, 5])
-    with btn_container:
-        with st.container(border=True):
-            st.markdown('<div class="session-btn-row">', unsafe_allow_html=True)
-            col_left, col_right = st.columns([1, 1])
-            
-            with col_left:
-                st.markdown('<div class="btn-green">', unsafe_allow_html=True)
-                if st.button("Get Attendance"):
-                    if lec_lat is None or lec_lon is None:
-                        st.error("GPS coordinates needed to activate session.")
-                    else:
-                        global_store["session_active"] = True
-                        global_store["subject"] = lecturer_subject
-                        global_store["lab"] = lecturer_lab
-                        global_store["lecturer_lat"] = lec_lat
-                        global_store["lecturer_lon"] = lec_lon
-                        global_store["submitted_students"].clear()
-                        st.success(
-                            f"Session activated for {lecturer_subject} at {lecturer_lab}."
-                        )
-                        st.rerun()
-                st.markdown('</div>', unsafe_allow_html=True)
-
-            with col_right:
-                st.markdown('<div class="btn-red">', unsafe_allow_html=True)
-                if st.button("Close Session", disabled=not global_store["session_active"]):
-                    global_store["session_active"] = False
-                    st.success("Attendance session has been closed.")
-                    st.rerun()
-                st.markdown('</div>', unsafe_allow_html=True)
-            st.markdown('</div>', unsafe_allow_html=True)
-
-            # Refresh button inside the same frame, underneath both session buttons
-            st.markdown('<div class="btn-refresh">', unsafe_allow_html=True)
-            if st.button("Refresh Attendance Table"):
+    # Standard Action Buttons
+    col_get, col_close, col_ref = st.columns(3)
+    with col_get:
+        if st.button("Get Attendance"):
+            if lec_lat is None or lec_lon is None:
+                st.error("GPS coordinates needed to activate session.")
+            else:
+                global_store["session_active"] = True
+                global_store["subject"] = lecturer_subject
+                global_store["lab"] = lecturer_lab
+                global_store["lecturer_lat"] = lec_lat
+                global_store["lecturer_lon"] = lec_lon
+                global_store["submitted_students"].clear()
+                st.success(
+                    f"Session activated for {lecturer_subject} at {lecturer_lab}."
+                )
                 st.rerun()
-            st.markdown('</div>', unsafe_allow_html=True)
+
+    with col_close:
+        if st.button("Close Session", disabled=not global_store["session_active"]):
+            global_store["session_active"] = False
+            st.success("Attendance session has been closed.")
+            st.rerun()
+
+    with col_ref:
+        if st.button("Refresh Attendance Table"):
+            st.rerun()
 
     st.markdown("---")
     st.subheader("Attendance Record")
@@ -636,7 +467,6 @@ elif st.session_state.current_page == "LecturerDashboard":
             value=mc_count,
         )
 
-        # FIXED & SCROLLABLE ATTENDANCE RECORD TABLE
         df = pd.DataFrame(attendance_list)
         display_columns = ["Timestamp", "Name", "Matrix", "Class", "Subject", "Lab", "Status", "File Name"]
         existing_cols = [c for c in display_columns if c in df.columns]
@@ -644,72 +474,8 @@ elif st.session_state.current_page == "LecturerDashboard":
         st.dataframe(
             df[existing_cols],
             use_container_width=True,
-            height=260
+            height=320
         )
-
-        st.markdown("### Verification Actions")
-
-        records_to_delete = []
-
-        COL_RATIOS = [1.5, 1.1, 0.8, 0.6, 2.2, 1.8, 2.0]
-
-        h_ts, h_nm, h_mx, h_cl, h_sub, h_st, h_act = st.columns(COL_RATIOS)
-        h_ts.caption("**Timestamp**")
-        h_nm.caption("**Name**")
-        h_mx.caption("**Matrix**")
-        h_cl.caption("**Class**")
-        h_sub.caption("**Subject**")
-        h_st.caption("**Status**")
-        h_act.caption("**Actions**")
-        st.markdown("<hr style='margin-top:0px; margin-bottom:4px; border-color:#CBD5E1;' />", unsafe_allow_html=True)
-
-        with st.container(border=True):
-            st.markdown('<div class="scrollable-marker"></div>', unsafe_allow_html=True)
-            for idx, rec in enumerate(attendance_list):
-                c_ts, c_nm, c_mx, c_cl, c_sub, c_st, c_act = st.columns(COL_RATIOS)
-
-                c_ts.markdown(f"<span style='font-size:0.8rem;'>{rec.get('Timestamp', '-')}</span>", unsafe_allow_html=True)
-                c_nm.markdown(f"<span style='font-size:0.8rem;'><b>{rec.get('Name', '-')}</b></span>", unsafe_allow_html=True)
-                c_mx.markdown(f"<span style='font-size:0.8rem;'>{rec.get('Matrix', '-')}</span>", unsafe_allow_html=True)
-                c_cl.markdown(f"<span style='font-size:0.8rem;'>{rec.get('Class', '-')}</span>", unsafe_allow_html=True)
-                c_sub.markdown(f"<span style='font-size:0.8rem;'>{rec.get('Subject', '-')}</span>", unsafe_allow_html=True)
-                c_st.markdown(f"<span style='font-size:0.8rem;'>{rec.get('Status', '-')}</span>", unsafe_allow_html=True)
-
-                with c_act:
-                    act_col1, act_col2, act_col3 = st.columns([1, 1, 1])
-                    
-                    with act_col1:
-                        if rec.get("image_bytes"):
-                            st.markdown('<div class="action-btn-wrap">', unsafe_allow_html=True)
-                            if st.button("Photo", key=f"img_btn_{idx}", help="View Camera Photo"):
-                                st.session_state.selected_image_record = rec
-                                st.rerun()
-                            st.markdown('</div>', unsafe_allow_html=True)
-
-                    with act_col2:
-                        if rec.get("doc_bytes"):
-                            st.markdown('<div class="action-btn-wrap">', unsafe_allow_html=True)
-                            if st.button("Doc", key=f"doc_btn_{idx}", help="View Document Proof"):
-                                st.session_state.selected_doc_record = rec
-                                st.rerun()
-                            st.markdown('</div>', unsafe_allow_html=True)
-
-                    with act_col3:
-                        st.markdown('<div class="action-btn-wrap action-btn-del">', unsafe_allow_html=True)
-                        if st.button("Delete", key=f"del_btn_{idx}", help="Remove Record"):
-                            records_to_delete.append(idx)
-                        st.markdown('</div>', unsafe_allow_html=True)
-
-                st.markdown("<hr style='margin:2px 0; border-color:#F1F5F9;' />", unsafe_allow_html=True)
-
-        if records_to_delete:
-            for d_idx in sorted(records_to_delete, reverse=True):
-                removed_rec = global_store["attendance_db"].pop(d_idx)
-                removed_matrix = removed_rec.get("Matrix")
-                if removed_matrix in global_store["submitted_students"]:
-                    global_store["submitted_students"].remove(removed_matrix)
-            st.success("Student record successfully removed.")
-            st.rerun()
 
         st.markdown("---")
 
@@ -818,7 +584,6 @@ elif st.session_state.current_page == "StudentDashboard":
                                 "Absent with Medical Certificate / Memo",
                             ],
                         )
-                        # Automatically convert student reason input to uppercase
                         mc_reason_input = st.text_input(
                             "Reason (if applicable):"
                         )
