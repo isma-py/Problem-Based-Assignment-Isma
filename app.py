@@ -27,21 +27,39 @@ class AttendanceSystemState:
         self.lab = ""
         self.lecturer_lat = None
         self.lecturer_lon = None
-        self.attendance_db = []
-        self.submitted_students = set()
+        self._attendance_db = []
+        self._submitted_students = set()
 
-    def __getattr__(self, item):
-        """
-        Fallback interceptor: Ensures legacy cached instances in Streamlit memory
-        never raise an AttributeError when new attributes are accessed.
-        """
-        if item == "submitted_students":
-            self.submitted_students = set()
-            return self.submitted_students
-        if item == "attendance_db":
-            self.attendance_db = []
-            return self.attendance_db
-        raise AttributeError(f"'{type(self).__name__}' object has no attribute '{item}'")
+    @property
+    def submitted_students(self):
+        # Guarantee a set is returned even on legacy cached instances
+        if not hasattr(self, "_submitted_students") or not isinstance(
+            getattr(self, "_submitted_students", None), set
+        ):
+            self._submitted_students = set()
+        return self._submitted_students
+
+    @submitted_students.setter
+    def submitted_students(self, value):
+        if isinstance(value, set):
+            self._submitted_students = value
+        else:
+            self._submitted_students = set(value)
+
+    @property
+    def attendance_db(self):
+        if not hasattr(self, "_attendance_db") or not isinstance(
+            getattr(self, "_attendance_db", None), list
+        ):
+            self._attendance_db = []
+        return self._attendance_db
+
+    @attendance_db.setter
+    def attendance_db(self, value):
+        if isinstance(value, list):
+            self._attendance_db = value
+        else:
+            self._attendance_db = list(value)
 
 
 @st.cache_resource
