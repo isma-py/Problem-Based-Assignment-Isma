@@ -20,11 +20,11 @@ from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, Tabl
 # ==========================================
 st.set_page_config(
     page_title="Campus Attendance System",
-    layout="wide",
+    layout="centered",
     initial_sidebar_state="collapsed",
 )
 
-# Responsive & Custom CSS
+# Responsive & Custom CSS (Fluid / Non-Fixed Layout)
 st.markdown(
     """
     <style>
@@ -35,31 +35,24 @@ st.markdown(
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     }
 
-    /* Container Spacing Adaptations */
+    /* Container Spacing Adaptations for Centered / Fluid View */
     .main .block-container {
-        padding-top: 1.5rem !important;
-        padding-bottom: 2rem !important;
-        max-width: 100% !important;
+        padding-top: 2rem !important;
+        padding-bottom: 3rem !important;
+        max-width: 850px !important;
     }
 
     /* Mobile Viewport Adjustments */
     @media (max-width: 768px) {
         .main .block-container {
-            padding-left: 0.8rem !important;
-            padding-right: 0.8rem !important;
+            padding-left: 1rem !important;
+            padding-right: 1rem !important;
+            padding-top: 1rem !important;
         }
-        h1 { font-size: 1.6rem !important; line-height: 1.25 !important; }
-        h2 { font-size: 1.25rem !important; }
-        h3 { font-size: 1.1rem !important; }
-        div[data-testid="stForm"] { padding: 14px !important; }
-    }
-
-    /* Desktop Viewport Adjustments */
-    @media (min-width: 769px) {
-        .main .block-container {
-            padding-left: 3rem !important;
-            padding-right: 3rem !important;
-        }
+        h1 { font-size: 1.5rem !important; line-height: 1.25 !important; }
+        h2 { font-size: 1.2rem !important; }
+        h3 { font-size: 1.05rem !important; }
+        div[data-testid="stForm"] { padding: 16px !important; }
     }
 
     /* Soft Form Cards */
