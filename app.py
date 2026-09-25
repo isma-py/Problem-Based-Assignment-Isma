@@ -3,6 +3,8 @@ import streamlit as st
 import datetime
 import pandas as pd
 import socket
+import subprocess
+import re
 import models
 
 # ==========================================
@@ -15,10 +17,26 @@ if "GLOBAL_SESSION_ACTIVE" not in globals():
     GLOBAL_LECTURER_IP = ""
     GLOBAL_ATTENDANCE_DB = []
 
-# Helper function to get the real local network Wi-Fi IP address using socket
-def get_local_ip():
+# Helper function to get exact local Wi-Fi IP address directly from Windows ipconfig / OS system network tools
+def get_exact_wifi_ip():
     try:
-        # Connect to an external address to determine the active local interface IP
+        # Run ipconfig to inspect local interfaces directly
+        output = subprocess.check_output("ipconfig", text=True, errors="ignore")
+        
+        # Look for Wireless LAN adapter Wi-Fi section first
+        wifi_section = re.search(r"Wireless LAN adapter Wi-Fi:.*?(?=\n\n|\Z)", output, re.DOTALL | re.IGNORECASE)
+        target_text = wifi_section.group(0) if wifi_section else output
+        
+        # Find IPv4 Address in target text
+        ip_matches = re.findall(r"IPv4 Address[.\s]+:\s*([\d\.]+)", target_text)
+        if ip_matches:
+            return ip_matches[0]
+            
+    except Exception:
+        pass
+
+    # Fallback method using socket if command execution is unavailable
+    try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.connect(("8.8.8.8", 80))
         ip = s.getsockname()[0]
@@ -27,7 +45,7 @@ def get_local_ip():
     except Exception:
         return "127.0.0.1"
 
-# Helper function to extract network subnet prefix (e.g., first 3 octets for Wi-Fi matching)
+# Helper function to extract network subnet prefix (e.g., first 3 octets for Wi-Fi subnet matching)
 def get_subnet(ip_address):
     parts = ip_address.split(".")
     if len(parts) >= 3:
@@ -64,8 +82,8 @@ if "show_absence_modal" not in st.session_state:
 if "pending_attendance_data" not in st.session_state:
     st.session_state.pending_attendance_data = None
 
-# Get current device network IP for display
-current_device_ip = get_local_ip()
+# Get exact Wi-Fi IP address matching cmd ipconfig
+current_device_ip = get_exact_wifi_ip()
 
 # ==========================================
 # PAGE 1: LANDING / SEPARATE LOGIN GATEWAY
@@ -73,7 +91,7 @@ current_device_ip = get_local_ip()
 if st.session_state.current_page == "Landing":
     st.title("Campus Attendance Management System")
     st.write("Please select your portal to proceed with authentication.")
-    st.info(f"Current Device Network IP Detected: {current_device_ip}")
+    st.info(f"Current Wi-Fi Adapter IP Detected: {current_device_ip}")
     st.markdown("---")
     
     col1, col2 = st.columns(2)
@@ -96,7 +114,7 @@ if st.session_state.current_page == "Landing":
 # ==========================================
 elif st.session_state.current_page == "LecturerLogin":
     st.title("Lecturer Portal Authentication")
-    st.info(f"Your Current Wi-Fi IP Address: {current_device_ip}")
+    st.info(f"Your Wi-Fi IP Address (cmd matched): {current_device_ip}")
     
     if st.button("Back to Main Portal"):
         st.session_state.current_page = "Landing"
@@ -123,7 +141,7 @@ elif st.session_state.current_page == "LecturerLogin":
 # ==========================================
 elif st.session_state.current_page == "StudentLogin":
     st.title("Student Portal Authentication")
-    st.info(f"Your Current Wi-Fi IP Address: {current_device_ip}")
+    st.info(f"Your Wi-Fi IP Address (cmd matched): {current_device_ip}")
     
     if st.button("Back to Main Portal"):
         st.session_state.current_page = "Landing"
@@ -151,7 +169,7 @@ elif st.session_state.current_page == "StudentLogin":
 elif st.session_state.current_page == "LecturerDashboard":
     st.title("Lecturer Control Dashboard")
     st.write(f"Logged in Lecturer: {st.session_state.lecturer_name} (ID: {st.session_state.lecturer_id})")
-    st.info(f"Lecturer Host Network IP: {current_device_ip}")
+    st.info(f"Lecturer Active Wi-Fi IP: {current_device_ip}")
     
     if st.button("Log Out"):
         st.session_state.current_page = "Landing"
@@ -192,7 +210,7 @@ elif st.session_state.current_page == "LecturerDashboard":
 elif st.session_state.current_page == "StudentDashboard":
     st.title("Student Attendance Portal")
     st.write(f"Logged in Student: {st.session_state.student_name} (Matrix: {st.session_state.student_matrix})")
-    st.info(f"Student Device Network IP: {current_device_ip}")
+    st.info(f"Student Active Wi-Fi IP: {current_device_ip}")
     
     if st.button("Log Out"):
         st.session_state.current_page = "Landing"
@@ -202,11 +220,11 @@ elif st.session_state.current_page == "StudentDashboard":
         lecturer_subnet = get_subnet(globals()["GLOBAL_LECTURER_IP"])
         student_subnet = get_subnet(current_device_ip)
         
-        # Verify if subnets match (or allow if both are running locally on test machine)
+        # Check subnet match or exact machine loopback
         is_same_network = (lecturer_subnet == student_subnet) or (globals()["GLOBAL_LECTURER_IP"] in ["127.0.0.1", "localhost", current_device_ip])
         
         if not is_same_network:
-            st.error(f"Network Verification Failed: Lecturer IP subnet ({lecturer_subnet}) does not match your Wi-Fi subnet ({student_subnet}). You must be connected to the exact same Wi-Fi network to submit attendance.")
+            st.error(f"Network Verification Failed: Lecturer Wi-Fi subnet ({lecturer_subnet}) does not match your Wi-Fi subnet ({student_subnet}). You must be connected to the same Wi-Fi network to submit attendance.")
         else:
             st.success(f"Network Verified: Connected to the same Wi-Fi network subnet as the lecturer ({lecturer_subnet}). Active session for {globals()['GLOBAL_SUBJECT']} in {globals()['GLOBAL_LAB']}.")
             
