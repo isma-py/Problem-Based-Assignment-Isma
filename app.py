@@ -15,10 +15,105 @@ from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
+# ==========================================
+# STREAMLIT PAGE CONFIG & SOFT COLOR THEME
+# ==========================================
+st.set_page_config(
+    page_title="Campus Attendance System",
+    page_icon="🎓",
+    layout="wide",
+)
+
+# Soft & Smooth Color Palette CSS
+st.markdown(
+    """
+    <style>
+    /* Global Page Styling */
+    .stApp {
+        background-color: #F8FAFC;
+        color: #334155;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    /* Primary Container / Card styling */
+    div[data-testid="stForm"] {
+        background-color: #FFFFFF;
+        border-radius: 12px;
+        padding: 24px;
+        border: 1px solid #E2E8F0;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.03), 0 2px 4px -1px rgba(0, 0, 0, 0.02);
+    }
+
+    /* Smooth Buttons */
+    .stButton > button {
+        background-color: #64748B;
+        color: #FFFFFF !important;
+        border: none;
+        border-radius: 8px;
+        padding: 8px 16px;
+        font-weight: 500;
+        transition: all 0.2s ease-in-out;
+    }
+    .stButton > button:hover {
+        background-color: #475569;
+        color: #FFFFFF !important;
+        box-shadow: 0 4px 12px rgba(71, 85, 105, 0.15);
+    }
+
+    /* Primary Action Buttons */
+    button[kind="primary"] {
+        background-color: #4338CA !important;
+        color: #FFFFFF !important;
+    }
+    button[kind="primary"]:hover {
+        background-color: #3730A3 !important;
+    }
+
+    /* Input Fields */
+    .stTextInput > div > div > input, .stSelectbox > div > div {
+        background-color: #F1F5F9;
+        border-radius: 8px;
+        border: 1px solid #CBD5E1;
+        color: #334155;
+    }
+    .stTextInput > div > div > input:focus {
+        border-color: #818CF8;
+        box-shadow: 0 0 0 2px rgba(129, 140, 248, 0.2);
+    }
+
+    /* Soft Success, Alert, and Warning Boxes */
+    .stAlert {
+        border-radius: 8px;
+        border: none;
+    }
+    div[data-baseweb="notification"] {
+        border-radius: 8px;
+    }
+
+    /* Metrics Styling */
+    [data-testid="stMetricValue"] {
+        color: #4338CA;
+        font-weight: 600;
+    }
+    
+    /* Headings styling */
+    h1, h2, h3 {
+        color: #1E293B;
+        font-weight: 600;
+    }
+    
+    /* Horizontal Rule */
+    hr {
+        border-color: #E2E8F0;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 
 # ==========================================
 # THREAD-SAFE GLOBAL SHARED STATE (Cross-Session)
-# Uses a simple Python dictionary to prevent Streamlit caching errors
 # ==========================================
 @st.cache_resource
 def get_global_store():
@@ -34,7 +129,6 @@ def get_global_store():
     }
 
 
-# Retrieve or initialize dictionary keys dynamically to prevent missing key errors
 global_store = get_global_store()
 global_store.setdefault("session_active", False)
 global_store.setdefault("subject", "")
@@ -128,7 +222,7 @@ def generate_pdf_report(
         parent=styles["Heading1"],
         fontSize=18,
         leading=22,
-        textColor=colors.HexColor("#1E3A8A"),
+        textColor=colors.HexColor("#334155"),
     )
     normal_style = styles["Normal"]
 
@@ -160,14 +254,14 @@ def generate_pdf_report(
     pdf_table = Table(table_data, colWidths=[110, 120, 90, 120, 110])
     pdf_table.setStyle(
         TableStyle([
-            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1E3A8A")),
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#475569")),
             ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
             ("ALIGN", (0, 0), (-1, -1), "LEFT"),
             ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
             ("FONTSIZE", (0, 0), (-1, 0), 10),
             ("BOTTOMPADDING", (0, 0), (-1, 0), 6),
-            ("BACKGROUND", (0, 1), (-1, -1), colors.HexColor("#F9FAFB")),
-            ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#D1D5DB")),
+            ("BACKGROUND", (0, 1), (-1, -1), colors.HexColor("#F8FAFC")),
+            ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#E2E8F0")),
             ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
             ("FONTSIZE", (0, 1), (-1, -1), 8),
         ])
@@ -354,10 +448,10 @@ elif st.session_state.current_page == "StudentLogin":
 # PAGE 4: LECTURER DASHBOARD
 # ==========================================
 elif st.session_state.current_page == "LecturerDashboard":
-    st.title("Lecturer")
+    st.title("Lecturer Dashboard")
     st.write(
-        f"Logged in Lecturer: {st.session_state.lecturer_name} (ID:"
-        f" {st.session_state.lecturer_id})"
+        f"Logged in Lecturer: **{st.session_state.lecturer_name}** (ID:"
+        f" **{st.session_state.lecturer_id}**)"
     )
 
     if st.button("Log Out"):
@@ -461,7 +555,6 @@ elif st.session_state.current_page == "LecturerDashboard":
             value=mc_count,
         )
 
-        # PREVIOUS TABLE DISPLAY RESTORED
         df = pd.DataFrame(attendance_list)
         display_columns = ["Timestamp", "Name", "Matrix", "Subject", "Lab", "Status", "File Name"]
         existing_cols = [c for c in display_columns if c in df.columns]
@@ -529,7 +622,7 @@ elif st.session_state.current_page == "LecturerDashboard":
 # PAGE 5: STUDENT DASHBOARD
 # ==========================================
 elif st.session_state.current_page == "StudentDashboard":
-    st.title("Student")
+    st.title("Student Dashboard")
     st.write(
         f"Logged in Student: **{st.session_state.student_name}** (Matrix:"
         f" **{st.session_state.student_matrix}**)"
