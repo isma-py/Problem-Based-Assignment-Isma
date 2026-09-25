@@ -22,13 +22,12 @@ def get_real_wifi_ip():
         stats = psutil.net_if_stats()
         addrs = psutil.net_if_addrs()
 
-        # Keywords to identify Wi-Fi adapter names on Windows/Mac/Linux
+        # Keywords to identify Wi-Fi adapter names across systems
         wifi_keywords = ["wi-fi", "wifi", "wlan", "wireless"]
 
         # 1. Search specifically for active Wi-Fi interfaces that are powered UP
         for interface_name, addresses in addrs.items():
             if any(kw in interface_name.lower() for kw in wifi_keywords):
-                # Check if the interface is actually active/up
                 if interface_name in stats and stats[interface_name].isup:
                     for addr in addresses:
                         if addr.family == socket.AF_INET and not addr.address.startswith("127."):
