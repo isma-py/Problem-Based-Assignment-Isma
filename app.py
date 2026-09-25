@@ -4,22 +4,40 @@ import datetime
 import pandas as pd
 import models
 
-# Initialize session state variables
-if "attendance_db" not in st.session_state:
-    st.session_state.attendance_db = []
+# ==========================================
+# GLOBAL MODULE-LEVEL VARIABLES (Shared across all tabs/users)
+# ==========================================
+if "GLOBAL_SESSION_ACTIVE" not in globals():
+    GLOBAL_SESSION_ACTIVE = False
+    GLOBAL_SUBJECT = ""
+    GLOBAL_LAB = ""
+    GLOBAL_LECTURER_IP = ""
+    GLOBAL_ATTENDANCE_DB = []
 
-if "session_active" not in st.session_state:
-    st.session_state.session_active = False
+# Helper function to get real client IP from headers
+def get_client_ip():
+    headers = st.context.headers
+    ip = headers.get("X-Forwarded-For", headers.get("Remote-Addr", "127.0.0.1"))
+    if ip and "," in ip:
+        ip = ip.split(",")[0].strip()
+    return ip
 
-if "active_subject" not in st.session_state:
-    st.session_state.active_subject = ""
+# Helper function to extract network subnet prefix (e.g., first 3 octets for local Wi-Fi matching)
+def get_subnet(ip_address):
+    parts = ip_address.split(".")
+    if len(parts) >= 3:
+        return ".".join(parts[:3])
+    return ip_address
 
-if "active_lab" not in st.session_state:
-    st.session_state.active_lab = ""
+# Styling helper function for soft-color row highlights
+def colorize_attendance_row(row):
+    """Applies soft green for Present and soft red for Absent rows."""
+    if "Present" in str(row["Status"]):
+        return ['background-color: #d4edda; color: #155724'] * len(row)
+    else:
+        return ['background-color: #f8d7da; color: #721c24'] * len(row)
 
-if "lecturer_ip" not in st.session_state:
-    st.session_state.lecturer_ip = ""
-
+# Initialize session state variables for navigation and login info
 if "current_page" not in st.session_state:
     st.session_state.current_page = "Landing"
 
@@ -40,29 +58,6 @@ if "show_absence_modal" not in st.session_state:
 
 if "pending_attendance_data" not in st.session_state:
     st.session_state.pending_attendance_data = None
-
-# Helper function to get real client IP from headers
-def get_client_ip():
-    headers = st.context.headers
-    ip = headers.get("X-Forwarded-For", headers.get("Remote-Addr", "127.0.0.1"))
-    if ip and "," in ip:
-        ip = ip.split(",")[0].strip()
-    return ip
-
-# Helper function to extract network subnet prefix (e.g., first 3 octets for local net matching)
-def get_subnet(ip_address):
-    parts = ip_address.split(".")
-    if len(parts) >= 3:
-        return ".".join(parts[:3])
-    return ip_address
-
-# Styling helper function for soft-color row highlights
-def colorize_attendance_row(row):
-    """Applies soft green for Present and soft red for Absent rows."""
-    if "Present" in str(row["Status"]):
-        return ['background-color: #d4edda; color: #155724'] * len(row)
-    else:
-        return ['background-color: #f8d7da; color: #721c24'] * len(row)
 
 # ==========================================
 # PAGE 1: LANDING / SEPARATE LOGIN GATEWAY
@@ -156,23 +151,23 @@ elif st.session_state.current_page == "LecturerDashboard":
         activate_btn = st.form_submit_button("Get Attendance (Activate Session)")
         
         if activate_btn:
-            # Capture the lecturer's current network IP address upon session activation
-            st.session_state.lecturer_ip = get_client_ip()
-            st.session_state.session_active = True
-            st.session_state.active_subject = lecturer_subject
-            st.session_state.active_lab = lecturer_lab
-            st.success(f"Session activated for {lecturer_subject} at {lecturer_lab} (Host Network IP Recorded: {st.session_state.lecturer_ip}).")
+            # Set global variables so all tabs/users instantly detect the active session
+            globals()["GLOBAL_SESSION_ACTIVE"] = True
+            globals()["GLOBAL_SUBJECT"] = lecturer_subject
+            globals()["GLOBAL_LAB"] = lecturer_lab
+            globals()["GLOBAL_LECTURER_IP"] = get_client_ip()
+            st.success(f"Session activated for {lecturer_subject} at {lecturer_lab} (Host Network IP Recorded: {globals()['GLOBAL_LECTURER_IP']}).")
 
     st.markdown("---")
     st.subheader("Attendance")
     
-    if st.session_state.attendance_db:
-        st.write(f"Total Subscriptions Logged: {len(st.session_state.attendance_db)}")
-        mc_count = sum(1 for item in st.session_state.attendance_db if item.get("has_mc"))
+    if globals()["GLOBAL_ATTENDANCE_DB"]:
+        st.write(f"Total Subscriptions Logged: {len(globals()['GLOBAL_ATTENDANCE_DB'])}")
+        mc_count = sum(1 for item in globals()["GLOBAL_ATTENDANCE_DB"] if item.get("has_mc"))
         st.metric(label="Total Records with Medical Certificates / Memos", value=mc_count)
         
-        # Fixed size, scrollable table with an increased height (450px)
-        df_records = pd.DataFrame(st.session_state.attendance_db)
+        # Fixed size, scrollable table with increased height (450px)
+        df_records = pd.DataFrame(globals()["GLOBAL_ATTENDANCE_DB"])
         styled_df = df_records[['Timestamp', 'Name', 'Matrix', 'Subject', 'Lab', 'Status', 'File Name']].style.apply(colorize_attendance_row, axis=1)
         
         st.dataframe(styled_df, height=450, use_container_width=True)
@@ -190,20 +185,20 @@ elif st.session_state.current_page == "StudentDashboard":
         st.session_state.current_page = "Landing"
         st.rerun()
         
-    # Real Network Subnet Verification Check
-    student_ip = get_client_ip()
-    
-    if st.session_state.session_active:
-        # Verify if student is on the exact same network subnet as the lecturer
-        lecturer_subnet = get_subnet(st.session_state.lecturer_ip)
+    # Check global session status
+    if globals()["GLOBAL_SESSION_ACTIVE"]:
+        # Real Network Subnet Verification Check
+        student_ip = get_client_ip()
+        lecturer_subnet = get_subnet(globals()["GLOBAL_LECTURER_IP"])
         student_subnet = get_subnet(student_ip)
         
-        is_same_network = (lecturer_subnet == student_subnet) or (st.session_state.lecturer_ip in ["127.0.0.1", "localhost", student_ip])
+        # Match subnets, or allow localhost for local testing across tabs
+        is_same_network = (lecturer_subnet == student_subnet) or (globals()["GLOBAL_LECTURER_IP"] in ["127.0.0.1", "localhost", student_ip])
         
         if not is_same_network:
-            st.error("Network Verification Failed: You are not connected to the same local network as the lecturer. Attendance notification and submission are locked.")
+            st.error("Network Verification Failed: You are not connected to the same local network/Wi-Fi as the lecturer. Attendance notification and submission are locked.")
         else:
-            st.info(f"Network Verified: Connected to lecturer network segment. Active session for {st.session_state.active_subject} in {st.session_state.active_lab}.")
+            st.info(f"Network Verified: Connected to lecturer network segment. Active session for {globals()['GLOBAL_SUBJECT']} in {globals()['GLOBAL_LAB']}.")
             
             with st.form("student_attendance_form"):
                 st.subheader("Submit Attendance Details")
@@ -225,15 +220,14 @@ elif st.session_state.current_page == "StudentDashboard":
                         has_mc_flag = (attendance_status_type == "Absent with Medical Certificate / Memo")
                         file_name_str = uploaded_file.name if uploaded_file else "No File Attached"
                         
-                        # Modal trigger condition: student submitting absence with no uploaded file evidence
                         if attendance_status_type == "Absent with Medical Certificate / Memo" and file_name_str == "No File Attached":
                             st.session_state.show_absence_modal = True
                             st.session_state.pending_attendance_data = {
                                 "Timestamp": str(f"{attendance_date} {attendance_time}"),
                                 "Name": st.session_state.student_name,
                                 "Matrix": st.session_state.student_matrix,
-                                "Subject": st.session_state.active_subject,
-                                "Lab": st.session_state.active_lab,
+                                "Subject": globals()["GLOBAL_SUBJECT"],
+                                "Lab": globals()["GLOBAL_LAB"],
                                 "Status": attendance_status_type,
                                 "summary": f"Student: {st.session_state.student_name} | Matrix: {st.session_state.student_matrix} - Absent with No Evidence",
                                 "has_mc": False,
@@ -243,8 +237,8 @@ elif st.session_state.current_page == "StudentDashboard":
                             record_obj = models.VerifiedAttendanceRecord(
                                 student_name=st.session_state.student_name,
                                 matrix_no=st.session_state.student_matrix,
-                                lab_name=st.session_state.active_lab,
-                                subject_name=st.session_state.active_subject,
+                                lab_name=globals()["GLOBAL_LAB"],
+                                subject_name=globals()["GLOBAL_SUBJECT"],
                                 has_mc=has_mc_flag,
                                 mc_reason=mc_reason_input if has_mc_flag else "None"
                             )
@@ -253,14 +247,14 @@ elif st.session_state.current_page == "StudentDashboard":
                                 "Timestamp": str(f"{attendance_date} {attendance_time}"),
                                 "Name": st.session_state.student_name,
                                 "Matrix": st.session_state.student_matrix,
-                                "Subject": st.session_state.active_subject,
-                                "Lab": st.session_state.active_lab,
+                                "Subject": globals()["GLOBAL_SUBJECT"],
+                                "Lab": globals()["GLOBAL_LAB"],
                                 "Status": attendance_status_type,
                                 "summary": record_obj.process_record_summary(),
                                 "has_mc": has_mc_flag,
                                 "File Name": file_name_str
                             }
-                            st.session_state.attendance_db.append(record_data)
+                            globals()["GLOBAL_ATTENDANCE_DB"].append(record_data)
                             st.success("Attendance submitted and recorded into the database successfully.")
                             
                     except ValueError as ve:
@@ -274,7 +268,7 @@ elif st.session_state.current_page == "StudentDashboard":
                 col_m1, col_m2 = st.columns(2)
                 with col_m1:
                     if st.button("Confirm Submit Without Evidence"):
-                        st.session_state.attendance_db.append(st.session_state.pending_attendance_data)
+                        globals()["GLOBAL_ATTENDANCE_DB"].append(st.session_state.pending_attendance_data)
                         st.session_state.show_absence_modal = False
                         st.session_state.pending_attendance_data = None
                         st.success("Absence recorded successfully without attached evidence.")
