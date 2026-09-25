@@ -3,8 +3,15 @@ import streamlit as st
 import datetime
 import pandas as pd
 import math
+import io
 from streamlit_js_eval import get_geolocation
 import models
+
+# ReportLab imports for generating PDF reports
+from reportlab.lib.pagesizes import letter
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib import colors
 
 # ==========================================
 # THREAD-SAFE GLOBAL SHARED STATE (Cross-Session)
@@ -24,13 +31,9 @@ def get_global_system_state():
     """Returns a single shared instance accessible by ALL users/tabs."""
     return AttendanceSystemState()
 
-# Access the shared system memory
 global_state = get_global_system_state()
-
-# Maximum allowable physical distance between student and lecturer (in meters)
 MAX_ALLOWED_DISTANCE_METERS = 50.0
 
-# Helper function: Calculate distance using Haversine Formula
 def calculate_distance(lat1, lon1, lat2, lon2):
     R = 6371000.0  # Radius of Earth in meters
     phi1 = math.radians(lat1)
@@ -45,110 +48,140 @@ def calculate_distance(lat1, lon1, lat2, lon2):
     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
     return R * c
 
-# Styling helper function for soft-color row highlights
 def colorize_attendance_row(row):
-    """Applies soft green for Present and soft red for Absent rows."""
     if "Present" in str(row["Status"]):
         return ['background-color: #d4edda; color: #155724'] * len(row)
     else:
         return ['background-color: #f8d7da; color: #721c24'] * len(row)
 
-# Initialize per-user session state variables
+# Helper function: Generate PDF binary stream
+def generate_pdf_report(lecturer_name, lecturer_id, subject, lab, attendance_data):
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=30, leftMargin=30, topMargin=30, bottomMargin=30)
+    story = []
+    styles = getSampleStyleSheet()
+
+    title_style = ParagraphStyle('TitleStyle', parent=styles['Heading1'], fontSize=18, leading=22, textColor=colors.HexColor('#1E3A8A'))
+    normal_style = styles['Normal']
+
+    story.append(Paragraph("Campus Attendance Management System - Report", title_style))
+    story.append(Spacer(1, 10))
+
+    meta_text = f"""
+    <b>Lecturer:</b> {lecturer_name} (ID: {lecturer_id})<br/>
+    <b>Subject:</b> {subject if subject else 'N/A'}<br/>
+    <b>Location:</b> {lab if lab else 'N/A'}<br/>
+    <b>Generated Date:</b> {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+    """
+    story.append(Paragraph(meta_text, normal_style))
+    story.append(Spacer(1, 15))
+
+    # Table Header & Data Setup
+    table_data = [["Timestamp", "Name", "Matrix No.", "Status", "Attachment"]]
+    for record in attendance_data:
+        table_data.append([
+            str(record.get("Timestamp", "")),
+            str(record.get("Name", "")),
+            str(record.get("Matrix", "")),
+            str(record.get("Status", "")),
+            str(record.get("File Name", "None"))
+        ])
+
+    pdf_table = Table(table_data, colWidths=[110, 120, 90, 120, 110])
+    pdf_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1E3A8A')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
+        ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#F9FAFB')),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#D1D5DB')),
+        ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 1), (-1, -1), 8),
+    ]))
+
+    story.append(pdf_table)
+    doc.build(story)
+    buffer.seek(0)
+    return buffer.getvalue()
+
+# Session State Initialization
 if "current_page" not in st.session_state:
     st.session_state.current_page = "Landing"
-
 if "lecturer_name" not in st.session_state:
     st.session_state.lecturer_name = ""
-
 if "lecturer_id" not in st.session_state:
     st.session_state.lecturer_id = ""
-
 if "student_name" not in st.session_state:
     st.session_state.student_name = ""
-
 if "student_matrix" not in st.session_state:
     st.session_state.student_matrix = ""
-
 if "show_absence_modal" not in st.session_state:
     st.session_state.show_absence_modal = False
-
 if "pending_attendance_data" not in st.session_state:
     st.session_state.pending_attendance_data = None
 
 # ==========================================
-# PAGE 1: LANDING / SEPARATE LOGIN GATEWAY
+# PAGE 1: LANDING
 # ==========================================
 if st.session_state.current_page == "Landing":
     st.title("Campus Attendance Management System")
     st.write("Please select your portal to proceed with authentication.")
     st.markdown("---")
-    
     col1, col2 = st.columns(2)
     with col1:
         st.subheader("Lecturer Portal")
-        st.write("Access control dashboard to trigger attendance sessions and monitor records.")
         if st.button("Go to Lecturer Login"):
             st.session_state.current_page = "LecturerLogin"
             st.rerun()
-            
     with col2:
         st.subheader("Student Portal")
-        st.write("Access attendance submission forms during active class sessions.")
         if st.button("Go to Student Login"):
             st.session_state.current_page = "StudentLogin"
             st.rerun()
 
 # ==========================================
-# PAGE 2: LECTURER LOGIN PAGE
+# PAGE 2: LECTURER LOGIN
 # ==========================================
 elif st.session_state.current_page == "LecturerLogin":
     st.title("Lecturer Portal Authentication")
-    
     if st.button("Back to Main Portal"):
         st.session_state.current_page = "Landing"
         st.rerun()
-        
     with st.form("lecturer_login_form"):
         lec_name_input = st.text_input("Enter Lecturer Name:")
         lec_id_input = st.text_input("Enter Lecturer ID:")
         login_btn = st.form_submit_button("Log In")
-        
         if login_btn:
-            try:
-                if not lec_name_input.strip() or not lec_id_input.strip():
-                    raise ValueError("Lecturer Name and ID cannot be empty.")
+            if lec_name_input.strip() and lec_id_input.strip():
                 st.session_state.lecturer_name = lec_name_input
                 st.session_state.lecturer_id = lec_id_input
                 st.session_state.current_page = "LecturerDashboard"
                 st.rerun()
-            except ValueError as ve:
-                st.error(f"Login Validation Error: {ve}")
+            else:
+                st.error("Fields cannot be empty.")
 
 # ==========================================
-# PAGE 3: STUDENT LOGIN PAGE
+# PAGE 3: STUDENT LOGIN
 # ==========================================
 elif st.session_state.current_page == "StudentLogin":
     st.title("Student Portal Authentication")
-    
     if st.button("Back to Main Portal"):
         st.session_state.current_page = "Landing"
         st.rerun()
-        
     with st.form("student_login_form"):
         stud_name_input = st.text_input("Enter Full Name:")
         stud_matrix_input = st.text_input("Enter Matrix Number:")
         stud_login_btn = st.form_submit_button("Log In")
-        
         if stud_login_btn:
-            try:
-                if not stud_name_input.strip() or not stud_matrix_input.strip():
-                    raise ValueError("Student Name and Matrix Number cannot be empty.")
+            if stud_name_input.strip() and stud_matrix_input.strip():
                 st.session_state.student_name = stud_name_input
                 st.session_state.student_matrix = stud_matrix_input
                 st.session_state.current_page = "StudentDashboard"
                 st.rerun()
-            except ValueError as ve:
-                st.error(f"Login Validation Error: {ve}")
+            else:
+                st.error("Fields cannot be empty.")
 
 # ==========================================
 # PAGE 4: LECTURER DASHBOARD
@@ -167,54 +200,60 @@ elif st.session_state.current_page == "LecturerDashboard":
             st.rerun()
         
     st.subheader("Classroom Location Verification")
-    st.info("Please allow browser location access so the system can set the classroom boundary for students.")
-    
-    # Prompt browser for lecturer's GPS location
     loc = get_geolocation()
-    
-    lec_lat = None
-    lec_lon = None
+    lec_lat, lec_lon = None, None
     if loc and "coords" in loc:
-        lec_lat = loc["coords"]["latitude"]
-        lec_lon = loc["coords"]["longitude"]
+        lec_lat, lec_lon = loc["coords"]["latitude"], loc["coords"]["longitude"]
         st.success(f"Classroom GPS Coordinates Captured: Lat {lec_lat:.5f}, Lon {lec_lon:.5f}")
     else:
-        st.warning("Waiting for browser location authorization... Please click 'Allow' when prompted by your browser.")
+        st.warning("Waiting for browser location authorization...")
 
     with st.form("lecturer_session_form"):
         st.subheader("Configure Class Session Parameters")
         lecturer_subject = st.selectbox("Select Lecture Subject", ["DFK50083 Python Programming", "DBF50123 Database Systems", "DTN50233 Network Security"])
         lecturer_lab = st.selectbox("Select Laboratory Location", ["Lab Alpha", "Lab Beta", "Lab Gamma", "Networking Lab 1"])
-        
         activate_btn = st.form_submit_button("Get Attendance (Activate Session)")
         
         if activate_btn:
             if lec_lat is None or lec_lon is None:
-                st.error("Cannot activate session without GPS location. Please allow browser location access and try again.")
+                st.error("GPS coordinates needed to activate session.")
             else:
                 global_state.session_active = True
                 global_state.subject = lecturer_subject
                 global_state.lab = lecturer_lab
                 global_state.lecturer_lat = lec_lat
                 global_state.lecturer_lon = lec_lon
-                st.success(f"Session activated for {lecturer_subject} at {lecturer_lab}. Physical boundary set within {MAX_ALLOWED_DISTANCE_METERS} meters.")
+                st.success(f"Session activated for {lecturer_subject} at {lecturer_lab}.")
 
     st.markdown("---")
     st.subheader("Live Attendance Records")
     
-    # Render global database records live
     if global_state.attendance_db:
         st.write(f"Total Submissions Logged: **{len(global_state.attendance_db)}**")
         mc_count = sum(1 for item in global_state.attendance_db if item.get("has_mc"))
         st.metric(label="Total Records with Medical Certificates / Memos", value=mc_count)
         
         df_records = pd.DataFrame(global_state.attendance_db)
-        
-        # Display styled dataframe table
         styled_df = df_records[['Timestamp', 'Name', 'Matrix', 'Subject', 'Lab', 'Status', 'File Name']].style.apply(colorize_attendance_row, axis=1)
-        st.dataframe(styled_df, height=450, use_container_width=True)
+        st.dataframe(styled_df, height=350, use_container_width=True)
+        
+        # GENERATE AND DOWNLOAD PDF REPORT
+        pdf_bytes = generate_pdf_report(
+            st.session_state.lecturer_name,
+            st.session_state.lecturer_id,
+            global_state.subject,
+            global_state.lab,
+            global_state.attendance_db
+        )
+        
+        st.download_button(
+            label="📄 Download Attendance PDF Report",
+            data=pdf_bytes,
+            file_name=f"Attendance_Report_{datetime.date.today()}.pdf",
+            mime="application/pdf"
+        )
     else:
-        st.info("No attendance submissions logged yet. Click '🔄 Refresh Attendance Table' above when students submit.")
+        st.info("No attendance submissions logged yet.")
 
 # ==========================================
 # PAGE 5: STUDENT DASHBOARD
@@ -232,119 +271,52 @@ elif st.session_state.current_page == "StudentDashboard":
         if st.button("🔄 Sync Class Session Status"):
             st.rerun()
 
-    st.subheader("Student Location Verification")
-    
-    # Capture GPS immediately on load
     student_loc = get_geolocation()
-    
-    student_lat = None
-    student_lon = None
-
+    student_lat, student_lon = None, None
     if student_loc and "coords" in student_loc:
-        student_lat = student_loc["coords"]["latitude"]
-        student_lon = student_loc["coords"]["longitude"]
-        st.success(f"Student GPS Coordinates Captured: Lat {student_lat:.5f}, Lon {student_lon:.5f}")
-    else:
-        st.warning("⚠️ Location access required: Please click 'Allow' on your browser popup to enable attendance submission.")
+        student_lat, student_lon = student_loc["coords"]["latitude"], student_loc["coords"]["longitude"]
+        st.success(f"Student GPS Captured: Lat {student_lat:.5f}, Lon {student_lon:.5f}")
 
     st.markdown("---")
 
-    # Evaluate shared global state across sessions
     if global_state.session_active:
-        st.success(f"📢 **ACTIVE SESSION DETECTED:** {global_state.subject} ({global_state.lab})")
-        
-        lec_lat = global_state.lecturer_lat
-        lec_lon = global_state.lecturer_lon
+        st.success(f"📢 **ACTIVE SESSION:** {global_state.subject} ({global_state.lab})")
         
         if student_lat is None or student_lon is None:
-            st.info("Awaiting student GPS authorization... Please ensure your device location is turned on and allowed in the browser.")
+            st.info("Awaiting student GPS authorization...")
         else:
-            distance = calculate_distance(lec_lat, lec_lon, student_lat, student_lon)
-            st.write(f"Calculated distance to classroom: **{distance:.1f} meters**")
+            distance = calculate_distance(global_state.lecturer_lat, global_state.lecturer_lon, student_lat, student_lon)
+            st.write(f"Distance to classroom: **{distance:.1f} meters**")
             
             if distance > MAX_ALLOWED_DISTANCE_METERS:
-                st.error(f"Location Verification Failed: You are {distance:.1f} meters away from the classroom. Submissions are restricted to within {MAX_ALLOWED_DISTANCE_METERS} meters.")
+                st.error(f"Verification Failed: You are {distance:.1f}m away (Max allowed: {MAX_ALLOWED_DISTANCE_METERS}m).")
             else:
-                st.success(f"Location Verified: You are within the classroom boundary ({distance:.1f}m away). You may now submit your attendance below.")
+                st.success("Location Verified. Submit details below.")
                 
                 with st.form("student_attendance_form"):
-                    st.subheader("Submit Attendance Details")
-                    
                     attendance_date = st.date_input("Select Date", value=datetime.date.today())
                     attendance_time = st.time_input("Select Time", value=datetime.datetime.now().time())
-                    
                     attendance_status_type = st.selectbox("Attendance Status", ["Present", "Absent with Medical Certificate / Memo"])
-                    mc_reason_input = st.text_input("Reason for Absence / Medical Condition (if applicable):")
-                    uploaded_file = st.file_uploader("Upload Medical Certificate or Absence Memo (PDF/Image)", type=["pdf", "png", "jpg"])
+                    mc_reason_input = st.text_input("Reason (if applicable):")
+                    uploaded_file = st.file_uploader("Upload Medical Certificate", type=["pdf", "png", "jpg"])
                     
                     submit_attempt_btn = st.form_submit_button("Submit Attendance Record")
                     
                     if submit_attempt_btn:
-                        try:
-                            if attendance_status_type == "Absent with Medical Certificate / Memo" and not mc_reason_input.strip():
-                                raise ValueError("Please provide a reason or details for your medical certificate/memo.")
-                            
-                            has_mc_flag = (attendance_status_type == "Absent with Medical Certificate / Memo")
-                            file_name_str = uploaded_file.name if uploaded_file else "No File Attached"
-                            
-                            if attendance_status_type == "Absent with Medical Certificate / Memo" and file_name_str == "No File Attached":
-                                st.session_state.show_absence_modal = True
-                                st.session_state.pending_attendance_data = {
-                                    "Timestamp": str(f"{attendance_date} {attendance_time}"),
-                                    "Name": st.session_state.student_name,
-                                    "Matrix": st.session_state.student_matrix,
-                                    "Subject": global_state.subject,
-                                    "Lab": global_state.lab,
-                                    "Status": attendance_status_type,
-                                    "summary": f"Student: {st.session_state.student_name} | Matrix: {st.session_state.student_matrix} - Absent with No Evidence",
-                                    "has_mc": False,
-                                    "File Name": "No File Attached"
-                                }
-                            else:
-                                record_obj = models.VerifiedAttendanceRecord(
-                                    student_name=st.session_state.student_name,
-                                    matrix_no=st.session_state.student_matrix,
-                                    lab_name=global_state.lab,
-                                    subject_name=global_state.subject,
-                                    has_mc=has_mc_flag,
-                                    mc_reason=mc_reason_input if has_mc_flag else "None"
-                                )
-                                
-                                record_data = {
-                                    "Timestamp": str(f"{attendance_date} {attendance_time}"),
-                                    "Name": st.session_state.student_name,
-                                    "Matrix": st.session_state.student_matrix,
-                                    "Subject": global_state.subject,
-                                    "Lab": global_state.lab,
-                                    "Status": attendance_status_type,
-                                    "summary": record_obj.process_record_summary(),
-                                    "has_mc": has_mc_flag,
-                                    "File Name": file_name_str
-                                }
-                                # Append to globally shared database instance
-                                global_state.attendance_db.append(record_data)
-                                st.success("Attendance submitted and recorded into the database successfully.")
-                                
-                        except ValueError as ve:
-                            st.error(f"Validation Error: {ve}")
-                        except Exception as e:
-                            st.error(f"An unexpected error occurred during processing: {e}")
-                
-                # Modal Warning implementation
-                if st.session_state.show_absence_modal:
-                    st.warning("Warning Modal Reminder: You did not upload a medical certificate or memo. If you proceed, this will be counted as absence with no evidence. You can still confirm submission below.")
-                    col_m1, col_m2 = st.columns(2)
-                    with col_m1:
-                        if st.button("Confirm Submit Without Evidence"):
-                            global_state.attendance_db.append(st.session_state.pending_attendance_data)
-                            st.session_state.show_absence_modal = False
-                            st.session_state.pending_attendance_data = None
-                            st.success("Absence recorded successfully without attached evidence.")
-                            st.rerun()
-                    with col_m2:
-                        if st.button("Cancel & Go Back to Upload"):
-                            st.session_state.show_absence_modal = False
-                            st.session_state.pending_attendance_data = None
-                            st.rerun()
+                        file_name_str = uploaded_file.name if uploaded_file else "No File Attached"
+                        has_mc_flag = (attendance_status_type == "Absent with Medical Certificate / Memo")
+                        
+                        record_data = {
+                            "Timestamp": str(f"{attendance_date} {attendance_time}"),
+                            "Name": st.session_state.student_name,
+                            "Matrix": st.session_state.student_matrix,
+                            "Subject": global_state.subject,
+                            "Lab": global_state.lab,
+                            "Status": attendance_status_type,
+                            "has_mc": has_mc_flag,
+                            "File Name": file_name_str
+                        }
+                        global_state.attendance_db.append(record_data)
+                        st.success("Attendance submitted successfully.")
     else:
-        st.warning("⏳ Attendance session is currently closed. Click '🔄 Sync Class Session Status' above once your lecturer triggers the session.")
+        st.warning("⏳ Attendance session is currently closed. Click '🔄 Sync Class Session Status' when class starts.")
