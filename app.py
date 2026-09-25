@@ -20,12 +20,11 @@ from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, Tabl
 # ==========================================
 st.set_page_config(
     page_title="Campus Attendance System",
-    page_icon="🎓",
     layout="wide",
     initial_sidebar_state="collapsed",
 )
 
-# Responsive CSS via Media Queries (Mobile & Desktop Friendly)
+# Responsive CSS via Media Queries
 st.markdown(
     """
     <style>
@@ -86,10 +85,10 @@ st.markdown(
         background-color: #F1F5F9;
         color: #475569;
         border-radius: 8px;
-        padding: 8px 14px !important;
+        padding: 6px 12px !important;
         font-weight: 500;
         width: 100% !important;
-        min-height: 40px !important;
+        min-height: 38px !important;
         border: 1px solid #CBD5E1;
         transition: all 0.2s ease-in-out;
     }
@@ -118,16 +117,7 @@ st.markdown(
         color: #334155 !important;
     }
 
-    /* Action Grid Container Styling */
-    .action-btn-container .stButton > button {
-        width: 100% !important;
-        height: 36px !important;
-        min-height: 36px !important;
-        padding: 2px 6px !important;
-        font-size: 13px !important;
-        border-radius: 6px !important;
-    }
-
+    /* Action Grid Styling */
     .action-btn-container-delete .stButton > button {
         background-color: #FEF2F2 !important;
         color: #DC2626 !important;
@@ -153,7 +143,6 @@ st.markdown(
 # ==========================================
 @st.cache_resource
 def get_global_store():
-    """Returns a single shared dictionary instance accessible by ALL users/tabs."""
     return {
         "session_active": False,
         "subject": "",
@@ -178,12 +167,11 @@ MAX_ALLOWED_DISTANCE_METERS = 50.0
 
 
 def get_current_local_datetime():
-    """Returns accurate current datetime explicitly set to Malaysia Time (Asia/Kuala_Lumpur)."""
     return datetime.datetime.now(zoneinfo.ZoneInfo("Asia/Kuala_Lumpur"))
 
 
 def calculate_distance(lat1, lon1, lat2, lon2):
-    R = 6371000.0  # Radius of Earth in meters
+    R = 6371000.0
     phi1 = math.radians(lat1)
     phi2 = math.radians(lat2)
     delta_phi = math.radians(lat2 - lat1)
@@ -199,7 +187,6 @@ def calculate_distance(lat1, lon1, lat2, lon2):
 
 
 def detect_face_in_image(image_bytes):
-    """Accurately verifies that a human face is present in the camera image."""
     if not image_bytes or len(image_bytes) == 0:
         return False
 
@@ -426,7 +413,7 @@ if st.session_state.current_page == "Landing":
     st.title("Campus Attendance Management System")
     st.write("Please select your portal to proceed with authentication.")
     st.markdown("---")
-    
+
     col1, col2 = st.columns(2)
     with col1:
         st.subheader("Lecturer Portal")
@@ -509,54 +496,54 @@ elif st.session_state.current_page == "LecturerDashboard":
         st.subheader("Checking Location")
         st.warning("Waiting for browser location authorization...")
 
-    with st.form("lecturer_session_form"):
-        st.subheader("Configure Class Session Parameters")
-        lecturer_subject = st.selectbox(
-            "Select Lecture Subject",
-            [
-                "DFK50083 PYTHON PROGRAMMING",
-                "DFK50093 COMPUTER NETWORK SECURITY",
-                "DFN50563 ADVANCED SERVER ADMINISTRATION",
-                "DFT501X4 INTEGRATED PROJECT",
-                "MPU21072PENGHAYATAN ETIKA & PERADABAN",
-                "MPU22071KURSUS INTEGRITI DAN ANTIRASUAH",
-            ],
-        )
-        lecturer_lab = st.selectbox(
-            "Select Laboratory / Classroom Location",
-            [
-                "CCNA 1",
-                "CCNA 2",
-                "CNL 1",
-                "CNL 2",
-                "IT 1",
-                "IT 2",
-                "APDV 1",
-                "APDV 2",
-                "LL1",
-                "LL2",
-                "DKU",
-                "DK1",
-                "DK2",
-                "DK3",
-                "DK4",
-                "BK1",
-                "BK2",
-                "BK3",
-                "BK4",
-                "BK5",
-                "BK6",
-                "BK7",
-                "BK8",
-                "BK9",
-                "BK10",
-                "BS-JPA",
-            ],
-        )
+    st.subheader("Configure Class Session Parameters")
+    lecturer_subject = st.selectbox(
+        "Select Lecture Subject",
+        [
+            "DFK50083 PYTHON PROGRAMMING",
+            "DFK50093 COMPUTER NETWORK SECURITY",
+            "DFN50563 ADVANCED SERVER ADMINISTRATION",
+            "DFT501X4 INTEGRATED PROJECT",
+            "MPU21072PENGHAYATAN ETIKA & PERADABAN",
+            "MPU22071KURSUS INTEGRITI DAN ANTIRASUAH",
+        ],
+    )
+    lecturer_lab = st.selectbox(
+        "Select Laboratory / Classroom Location",
+        [
+            "CCNA 1",
+            "CCNA 2",
+            "CNL 1",
+            "CNL 2",
+            "IT 1",
+            "IT 2",
+            "APDV 1",
+            "APDV 2",
+            "LL1",
+            "LL2",
+            "DKU",
+            "DK1",
+            "DK2",
+            "DK3",
+            "DK4",
+            "BK1",
+            "BK2",
+            "BK3",
+            "BK4",
+            "BK5",
+            "BK6",
+            "BK7",
+            "BK8",
+            "BK9",
+            "BK10",
+            "BS-JPA",
+        ],
+    )
 
-        activate_btn = st.form_submit_button("Get Attendance (Activate Session)")
-
-        if activate_btn:
+    # Session control buttons placed side by side horizontally
+    btn_col1, btn_col2, btn_col3 = st.columns([2, 2, 2])
+    with btn_col1:
+        if st.button("Get Attendance (Activate Session)", type="primary"):
             if lec_lat is None or lec_lon is None:
                 st.error("GPS coordinates needed to activate session.")
             else:
@@ -571,18 +558,16 @@ elif st.session_state.current_page == "LecturerDashboard":
                 )
                 st.rerun()
 
-        col_btn1, col_btn2 = st.columns([1, 1])
-        with col_btn1:
-            refresh_btn = st.form_submit_button("Refresh Attendance Table")
-            if refresh_btn:
+    with btn_col2:
+        if st.button("Refresh Attendance Table"):
+            st.rerun()
+
+    with btn_col3:
+        if global_store["session_active"]:
+            if st.button("Close Attendance Session"):
+                global_store["session_active"] = False
+                st.success("Attendance session has been closed.")
                 st.rerun()
-        with col_btn2:
-            if global_store["session_active"]:
-                close_btn = st.form_submit_button("Close Attendance Session", type="primary")
-                if close_btn:
-                    global_store["session_active"] = False
-                    st.success("Attendance session has been closed.")
-                    st.rerun()
 
     st.markdown("---")
     st.subheader("Attendance Record")
@@ -604,10 +589,9 @@ elif st.session_state.current_page == "LecturerDashboard":
         st.markdown("### Verification Actions")
 
         records_to_delete = []
-        col_ratios = [1.5, 1.5, 1.2, 1.5, 1.2, 1.5]
 
-        # Dynamic Header Row
-        h_ts, h_nm, h_mx, h_sub, h_st, h_act = st.columns(col_ratios)
+        # Table Header
+        h_ts, h_nm, h_mx, h_sub, h_st, h_act = st.columns([1.5, 1.5, 1.2, 1.5, 1.2, 2.0])
         h_ts.markdown("**Timestamp**")
         h_nm.markdown("**Name**")
         h_mx.markdown("**Matrix**")
@@ -616,8 +600,9 @@ elif st.session_state.current_page == "LecturerDashboard":
         h_act.markdown("**Actions**")
         st.markdown("<hr style='margin-top:2px; margin-bottom:10px;' />", unsafe_allow_html=True)
 
+        # Table Rows
         for idx, rec in enumerate(attendance_list):
-            c_ts, c_nm, c_mx, c_sub, c_st, c_act = st.columns(col_ratios)
+            c_ts, c_nm, c_mx, c_sub, c_st, c_act = st.columns([1.5, 1.5, 1.2, 1.5, 1.2, 2.0])
 
             c_ts.write(rec.get("Timestamp", "-"))
             c_nm.write(f"**{rec.get('Name', '-')}**")
@@ -625,31 +610,27 @@ elif st.session_state.current_page == "LecturerDashboard":
             c_sub.write(rec.get("Subject", "-"))
             c_st.write(rec.get("Status", "-"))
 
+            # Actions placed inline next to each other
             with c_act:
-                act_btn1, act_btn2, act_btn3 = st.columns([1, 1, 1])
+                act_cols = st.columns(3)
+                col_idx = 0
 
-                with act_btn1:
-                    if rec.get("image_bytes"):
-                        st.markdown('<div class="action-btn-container">', unsafe_allow_html=True)
+                if rec.get("image_bytes"):
+                    with act_cols[col_idx]:
                         if st.button("Photo", key=f"img_btn_{idx}", help="View Camera Photo"):
                             st.session_state.selected_image_record = rec
                             st.rerun()
-                        st.markdown('</div>', unsafe_allow_html=True)
-                    else:
-                        st.caption("-")
+                    col_idx += 1
 
-                with act_btn2:
-                    if rec.get("doc_bytes"):
-                        st.markdown('<div class="action-btn-container">', unsafe_allow_html=True)
+                if rec.get("doc_bytes"):
+                    with act_cols[col_idx]:
                         if st.button("Doc", key=f"doc_btn_{idx}", help="View Document Proof"):
                             st.session_state.selected_doc_record = rec
                             st.rerun()
-                        st.markdown('</div>', unsafe_allow_html=True)
-                    else:
-                        st.caption("-")
+                    col_idx += 1
 
-                with act_btn3:
-                    st.markdown('<div class="action-btn-container action-btn-container-delete">', unsafe_allow_html=True)
+                with act_cols[col_idx]:
+                    st.markdown('<div class="action-btn-container-delete">', unsafe_allow_html=True)
                     if st.button("Delete", key=f"del_btn_{idx}", help="Remove Record"):
                         records_to_delete.append(idx)
                     st.markdown('</div>', unsafe_allow_html=True)
@@ -692,7 +673,6 @@ elif st.session_state.current_page == "StudentDashboard":
         f" **{st.session_state.student_matrix}**)"
     )
 
-    # Replaced 'auto' strings with numeric proportions to prevent Streamlit TypeError
     col_out, col_ref, _ = st.columns([1, 2, 3])
     with col_out:
         if st.button("Log Out"):
