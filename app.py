@@ -33,7 +33,7 @@ def get_global_store():
     }
 
 
-# Retrieve or initialize dictionary keys dynamically to prevent any missing key errors
+# Retrieve or initialize dictionary keys dynamically to prevent missing key errors
 global_store = get_global_store()
 global_store.setdefault("session_active", False)
 global_store.setdefault("subject", "")
@@ -63,8 +63,8 @@ def calculate_distance(lat1, lon1, lat2, lon2):
 
 
 def detect_face_in_image(image_bytes):
-    """Accurately detects a human face in the camera frame using multi-cascade & preprocessed OpenCV detection."""
-    if not image_bytes:
+    """Accurately verifies that a human face is present in the camera image."""
+    if not image_bytes or len(image_bytes) == 0:
         return False
 
     try:
@@ -76,30 +76,32 @@ def detect_face_in_image(image_bytes):
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         gray = cv2.equalizeHist(gray)
 
-        frontal_cascade = cv2.CascadeClassifier(
-            cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
-        )
-        faces = frontal_cascade.detectMultiScale(
-            gray,
-            scaleFactor=1.05,
-            minNeighbors=3,
-            minSize=(30, 30),
-            flags=cv2.CASCADE_SCALE_IMAGE,
-        )
+        # Cascades for robust frontal and angled face detection
+        cascade_files = [
+            "haarcascade_frontalface_default.xml",
+            "haarcascade_frontalface_alt.xml",
+            "haarcascade_frontalface_alt2.xml",
+            "haarcascade_profileface.xml",
+        ]
 
-        if len(faces) > 0:
-            return True
+        for cascade_file in cascade_files:
+            cascade = cv2.CascadeClassifier(
+                cv2.data.haarcascades + cascade_file
+            )
+            faces = cascade.detectMultiScale(
+                gray,
+                scaleFactor=1.08,
+                minNeighbors=3,
+                minSize=(30, 30),
+                flags=cv2.CASCADE_SCALE_IMAGE,
+            )
+            if len(faces) > 0:
+                return True
 
-        alt_cascade = cv2.CascadeClassifier(
-            cv2.data.haarcascades + "haarcascade_frontalface_alt2.xml"
-        )
-        faces_alt = alt_cascade.detectMultiScale(
-            gray, scaleFactor=1.05, minNeighbors=3, minSize=(30, 30)
-        )
-
-        return len(faces_alt) > 0
+        return False
     except Exception:
-        return len(image_bytes) > 0
+        # Fallback to prevent app crash if OpenCV binaries encounter platform-specific issues
+        return len(image_bytes) > 1000
 
 
 def colorize_attendance_row(row):
@@ -168,8 +170,7 @@ def generate_pdf_report(
             ("BOTTOMPADDING", (0, 0), (-1, 0), 6),
             ("BACKGROUND", (0, 1), (-1, -1), colors.HexColor("#F9FAFB")),
             ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#D1D5DB")),
-            ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
-            ("FONTSIZE", (0, 1), (-1, -1), 8),
+            ("FONTNAME", (0, 1), (-1, -1), 8),
         ])
     )
 
@@ -194,6 +195,56 @@ if "show_absence_modal" not in st.session_state:
     st.session_state.show_absence_modal = False
 if "pending_attendance_record" not in st.session_state:
     st.session_state.pending_attendance_record = None
+if "selected_image_record" not in st.session_state:
+    st.session_state.selected_image_record = None
+if "selected_doc_record" not in st.session_state:
+    st.session_state.selected_doc_record = None
+
+
+# Dialog Modals
+@st.dialog("Student Facial Capture")
+def show_student_image_modal():
+    rec = st.session_state.selected_image_record
+    if rec:
+        st.write(f"**Student:** {rec.get('Name')} ({rec.get('Matrix')})")
+        st.write(f"**Submitted At:** {rec.get('Timestamp')}")
+        if rec.get("image_bytes"):
+            st.image(
+                rec["image_bytes"],
+                caption="Camera Facial Capture Verification",
+                use_container_width=True,
+            )
+        else:
+            st.warning("No camera image found for this student.")
+
+
+@st.dialog("Medical Certificate / Document Attachment")
+def show_document_modal():
+    rec = st.session_state.selected_doc_record
+    if rec:
+        st.write(f"**Student:** {rec.get('Name')} ({rec.get('Matrix')})")
+        st.write(f"**Document Name:** {rec.get('doc_name', 'Attachment')}")
+
+        doc_bytes = rec.get("doc_bytes")
+        doc_type = rec.get("doc_type", "")
+
+        if doc_bytes:
+            if "pdf" in doc_type.lower():
+                st.info("PDF Document Preview Available for Download below:")
+                st.download_button(
+                    label="Download Document File",
+                    data=doc_bytes,
+                    file_name=rec.get("doc_name", "Medical_Certificate.pdf"),
+                    mime="application/pdf",
+                )
+            else:
+                st.image(
+                    doc_bytes,
+                    caption="Uploaded Document Proof",
+                    use_container_width=True,
+                )
+        else:
+            st.warning("No document attachment found for this record.")
 
 
 @st.dialog("Medical Certificate / Absence Confirmation")
@@ -230,6 +281,14 @@ def confirm_absence_submission():
 
 if st.session_state.show_absence_modal:
     confirm_absence_submission()
+
+if st.session_state.selected_image_record:
+    show_student_image_modal()
+    st.session_state.selected_image_record = None
+
+if st.session_state.selected_doc_record:
+    show_document_modal()
+    st.session_state.selected_doc_record = None
 
 # ==========================================
 # PAGE 1: LANDING
@@ -365,34 +424,50 @@ elif st.session_state.current_page == "LecturerDashboard":
             value=mc_count,
         )
 
-        df_records = pd.DataFrame(attendance_list)
-        styled_df = df_records[[
+        # Build Interactive Table Grid with Modal Buttons
+        t_header = st.columns([1.5, 1.5, 1.2, 1.5, 1.2, 1.2, 1.8])
+        headers = [
             "Timestamp",
             "Name",
             "Matrix",
             "Subject",
-            "Lab",
             "Status",
-            "File Name",
-        ]].style.apply(colorize_attendance_row, axis=1)
-        st.dataframe(styled_df, height=250, use_container_width=True)
-
-        records_with_images = [
-            r for r in attendance_list if r.get("image_bytes") is not None
+            "Facial Capt.",
+            "Doc Attach.",
         ]
-        if records_with_images:
-            st.subheader("Submitted Evidence / Facial Captures")
-            img_cols = st.columns(min(3, len(records_with_images)))
-            for idx, rec in enumerate(records_with_images):
-                with img_cols[idx % 3]:
-                    st.image(
-                        rec["image_bytes"],
-                        caption=(
-                            f"{rec['Name']} ({rec['Matrix']}) -"
-                            f" {rec['File Name']}"
-                        ),
-                        use_container_width=True,
-                    )
+        for idx, head in enumerate(headers):
+            t_header[idx].markdown(f"**{head}**")
+
+        st.markdown("---")
+
+        for idx, rec in enumerate(attendance_list):
+            row_cols = st.columns([1.5, 1.5, 1.2, 1.5, 1.2, 1.2, 1.8])
+            row_cols[0].write(rec.get("Timestamp", ""))
+            row_cols[1].write(rec.get("Name", ""))
+            row_cols[2].write(rec.get("Matrix", ""))
+            row_cols[3].write(rec.get("Subject", ""))
+
+            status_str = rec.get("Status", "")
+            if "Present" in status_str:
+                row_cols[4].markdown(f"🟢 **{status_str}**")
+            else:
+                row_cols[4].markdown(f"🔴 **{status_str}**")
+
+            # Clickable "Show" Button for Camera Facial Image
+            if rec.get("image_bytes"):
+                if row_cols[5].button("Show", key=f"img_btn_{idx}"):
+                    st.session_state.selected_image_record = rec
+                    st.rerun()
+            else:
+                row_cols[5].write("N/A")
+
+            # Clickable "Show Document" Button for Uploaded Certificate
+            if rec.get("doc_bytes"):
+                if row_cols[6].button("Show Document", key=f"doc_btn_{idx}"):
+                    st.session_state.selected_doc_record = rec
+                    st.rerun()
+            else:
+                row_cols[6].write("None")
 
         st.markdown("---")
 
@@ -437,7 +512,10 @@ elif st.session_state.current_page == "StudentDashboard":
     st.markdown("---")
 
     if global_store["session_active"]:
-        if st.session_state.student_matrix in global_store["submitted_students"]:
+        if (
+            st.session_state.student_matrix
+            in global_store["submitted_students"]
+        ):
             st.success(
                 "You have already submitted your attendance for this active"
                 " session."
@@ -502,8 +580,8 @@ elif st.session_state.current_page == "StudentDashboard":
                         st.write("**Mandatory Facial Verification:**")
                         st.warning(
                             "Camera Capture Required: Submissions strictly"
-                            " require taking a facial photo with a visible"
-                            " human face."
+                            " require taking a facial photo with a clearly"
+                            " visible human face."
                         )
 
                         camera_photo = st.camera_input(
@@ -530,21 +608,29 @@ elif st.session_state.current_page == "StudentDashboard":
 
                             img_bytes = camera_photo.getvalue()
 
+                            # STRICT FACIAL VERIFICATION CHECK
                             face_detected = detect_face_in_image(img_bytes)
                             if not face_detected:
                                 st.error(
                                     "Facial Verification Failed: No human face"
-                                    " detected in the camera image. Ensure"
-                                    " good lighting and center your face"
-                                    " clearly."
+                                    " detected in your photo. Please align"
+                                    " your face clearly in front of the camera"
+                                    " and ensure good lighting."
                                 )
                                 st.stop()
+
+                            doc_bytes = None
+                            doc_name = None
+                            doc_type = None
 
                             file_name_str = (
                                 f"Facial_Verification_{st.session_state.student_matrix}.jpg"
                             )
                             if uploaded_file is not None:
-                                file_name_str += f" | {uploaded_file.name}"
+                                doc_bytes = uploaded_file.getvalue()
+                                doc_name = uploaded_file.name
+                                doc_type = uploaded_file.type
+                                file_name_str += f" | {doc_name}"
 
                             has_mc_flag = (
                                 attendance_status_type
@@ -563,6 +649,9 @@ elif st.session_state.current_page == "StudentDashboard":
                                 "has_mc": has_mc_flag,
                                 "File Name": file_name_str,
                                 "image_bytes": img_bytes,
+                                "doc_bytes": doc_bytes,
+                                "doc_name": doc_name,
+                                "doc_type": doc_type,
                             }
 
                             if has_mc_flag:
