@@ -394,9 +394,8 @@ elif st.session_state.current_page == "LecturerDashboard":
             "Select Laboratory Location",
             ["Lab Alpha", "Lab Beta", "Lab Gamma", "Networking Lab 1"],
         )
-        activate_btn = st.form_submit_button(
-            "Get Attendance (Activate Session)"
-        )
+        
+        activate_btn = st.form_submit_button("Get Attendance (Activate Session)")
 
         if activate_btn:
             if lec_lat is None or lec_lon is None:
@@ -409,22 +408,23 @@ elif st.session_state.current_page == "LecturerDashboard":
                 global_store["lecturer_lon"] = lec_lon
                 global_store["submitted_students"].clear()
                 st.success(
-                    f"Session activated for {lecturer_subject} at"
-                    f" {lecturer_lab}."
+                    f"Session activated for {lecturer_subject} at {lecturer_lab}."
                 )
                 st.rerun()
 
-    # Buttons placed under Get Attendance
-    col_b1, col_b2 = st.columns(2)
-    with col_b1:
-        if st.button("Refresh Attendance Table"):
-            st.rerun()
-    with col_b2:
-        if global_store["session_active"]:
-            if st.button("Close Attendance Session", type="primary"):
-                global_store["session_active"] = False
-                st.success("Attendance session has been closed.")
+        # All control buttons inside the exact same frame
+        col_btn1, col_btn2 = st.columns(2)
+        with col_btn1:
+            refresh_btn = st.form_submit_button("Refresh Attendance Table")
+            if refresh_btn:
                 st.rerun()
+        with col_btn2:
+            if global_store["session_active"]:
+                close_btn = st.form_submit_button("Close Attendance Session", type="primary")
+                if close_btn:
+                    global_store["session_active"] = False
+                    st.success("Attendance session has been closed.")
+                    st.rerun()
 
     st.markdown("---")
     st.subheader("Attendance Record")
@@ -617,9 +617,7 @@ elif st.session_state.current_page == "StudentDashboard":
                         st.markdown("---")
                         st.write("**Mandatory Facial Verification:**")
                         st.warning(
-                            "Camera Capture Required: Submissions strictly"
-                            " require taking a facial photo with a clearly"
-                            " visible human face."
+                            "Camera Capture Required: You must take a face photo with a clearly visible human face, or your attendance will not be counted."
                         )
 
                         camera_photo = st.camera_input(
