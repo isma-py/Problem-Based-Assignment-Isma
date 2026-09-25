@@ -2,10 +2,11 @@
 import streamlit as st
 import datetime
 import pandas as pd
+import socket
 import models
 
 # ==========================================
-# GLOBAL MODULE-LEVEL VARIABLES (Shared across all tabs/users)
+# GLOBAL MODULE-LEVEL VARIABLES (Shared across tabs/users)
 # ==========================================
 if "GLOBAL_SESSION_ACTIVE" not in globals():
     GLOBAL_SESSION_ACTIVE = False
@@ -14,15 +15,19 @@ if "GLOBAL_SESSION_ACTIVE" not in globals():
     GLOBAL_LECTURER_IP = ""
     GLOBAL_ATTENDANCE_DB = []
 
-# Helper function to get real client IP from headers
-def get_client_ip():
-    headers = st.context.headers
-    ip = headers.get("X-Forwarded-For", headers.get("Remote-Addr", "127.0.0.1"))
-    if ip and "," in ip:
-        ip = ip.split(",")[0].strip()
-    return ip
+# Helper function to get the real local network Wi-Fi IP address using socket
+def get_local_ip():
+    try:
+        # Connect to an external address to determine the active local interface IP
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return "127.0.0.1"
 
-# Helper function to extract network subnet prefix (e.g., first 3 octets for local Wi-Fi matching)
+# Helper function to extract network subnet prefix (e.g., first 3 octets for Wi-Fi matching)
 def get_subnet(ip_address):
     parts = ip_address.split(".")
     if len(parts) >= 3:
@@ -59,12 +64,16 @@ if "show_absence_modal" not in st.session_state:
 if "pending_attendance_data" not in st.session_state:
     st.session_state.pending_attendance_data = None
 
+# Get current device network IP for display
+current_device_ip = get_local_ip()
+
 # ==========================================
 # PAGE 1: LANDING / SEPARATE LOGIN GATEWAY
 # ==========================================
 if st.session_state.current_page == "Landing":
     st.title("Campus Attendance Management System")
     st.write("Please select your portal to proceed with authentication.")
+    st.info(f"Current Device Network IP Detected: {current_device_ip}")
     st.markdown("---")
     
     col1, col2 = st.columns(2)
@@ -87,6 +96,8 @@ if st.session_state.current_page == "Landing":
 # ==========================================
 elif st.session_state.current_page == "LecturerLogin":
     st.title("Lecturer Portal Authentication")
+    st.info(f"Your Current Wi-Fi IP Address: {current_device_ip}")
+    
     if st.button("Back to Main Portal"):
         st.session_state.current_page = "Landing"
         st.rerun()
@@ -112,6 +123,8 @@ elif st.session_state.current_page == "LecturerLogin":
 # ==========================================
 elif st.session_state.current_page == "StudentLogin":
     st.title("Student Portal Authentication")
+    st.info(f"Your Current Wi-Fi IP Address: {current_device_ip}")
+    
     if st.button("Back to Main Portal"):
         st.session_state.current_page = "Landing"
         st.rerun()
@@ -138,6 +151,7 @@ elif st.session_state.current_page == "StudentLogin":
 elif st.session_state.current_page == "LecturerDashboard":
     st.title("Lecturer Control Dashboard")
     st.write(f"Logged in Lecturer: {st.session_state.lecturer_name} (ID: {st.session_state.lecturer_id})")
+    st.info(f"Lecturer Host Network IP: {current_device_ip}")
     
     if st.button("Log Out"):
         st.session_state.current_page = "Landing"
@@ -151,12 +165,11 @@ elif st.session_state.current_page == "LecturerDashboard":
         activate_btn = st.form_submit_button("Get Attendance (Activate Session)")
         
         if activate_btn:
-            # Set global variables so all tabs/users instantly detect the active session
             globals()["GLOBAL_SESSION_ACTIVE"] = True
             globals()["GLOBAL_SUBJECT"] = lecturer_subject
             globals()["GLOBAL_LAB"] = lecturer_lab
-            globals()["GLOBAL_LECTURER_IP"] = get_client_ip()
-            st.success(f"Session activated for {lecturer_subject} at {lecturer_lab} (Host Network IP Recorded: {globals()['GLOBAL_LECTURER_IP']}).")
+            globals()["GLOBAL_LECTURER_IP"] = current_device_ip
+            st.success(f"Session activated for {lecturer_subject} at {lecturer_lab}. Host IP Recorded: {current_device_ip}")
 
     st.markdown("---")
     st.subheader("Attendance")
@@ -166,7 +179,6 @@ elif st.session_state.current_page == "LecturerDashboard":
         mc_count = sum(1 for item in globals()["GLOBAL_ATTENDANCE_DB"] if item.get("has_mc"))
         st.metric(label="Total Records with Medical Certificates / Memos", value=mc_count)
         
-        # Fixed size, scrollable table with increased height (450px)
         df_records = pd.DataFrame(globals()["GLOBAL_ATTENDANCE_DB"])
         styled_df = df_records[['Timestamp', 'Name', 'Matrix', 'Subject', 'Lab', 'Status', 'File Name']].style.apply(colorize_attendance_row, axis=1)
         
@@ -180,25 +192,23 @@ elif st.session_state.current_page == "LecturerDashboard":
 elif st.session_state.current_page == "StudentDashboard":
     st.title("Student Attendance Portal")
     st.write(f"Logged in Student: {st.session_state.student_name} (Matrix: {st.session_state.student_matrix})")
+    st.info(f"Student Device Network IP: {current_device_ip}")
     
     if st.button("Log Out"):
         st.session_state.current_page = "Landing"
         st.rerun()
         
-    # Check global session status
     if globals()["GLOBAL_SESSION_ACTIVE"]:
-        # Real Network Subnet Verification Check
-        student_ip = get_client_ip()
         lecturer_subnet = get_subnet(globals()["GLOBAL_LECTURER_IP"])
-        student_subnet = get_subnet(student_ip)
+        student_subnet = get_subnet(current_device_ip)
         
-        # Match subnets, or allow localhost for local testing across tabs
-        is_same_network = (lecturer_subnet == student_subnet) or (globals()["GLOBAL_LECTURER_IP"] in ["127.0.0.1", "localhost", student_ip])
+        # Verify if subnets match (or allow if both are running locally on test machine)
+        is_same_network = (lecturer_subnet == student_subnet) or (globals()["GLOBAL_LECTURER_IP"] in ["127.0.0.1", "localhost", current_device_ip])
         
         if not is_same_network:
-            st.error("Network Verification Failed: You are not connected to the same local network/Wi-Fi as the lecturer. Attendance notification and submission are locked.")
+            st.error(f"Network Verification Failed: Lecturer IP subnet ({lecturer_subnet}) does not match your Wi-Fi subnet ({student_subnet}). You must be connected to the exact same Wi-Fi network to submit attendance.")
         else:
-            st.info(f"Network Verified: Connected to lecturer network segment. Active session for {globals()['GLOBAL_SUBJECT']} in {globals()['GLOBAL_LAB']}.")
+            st.success(f"Network Verified: Connected to the same Wi-Fi network subnet as the lecturer ({lecturer_subnet}). Active session for {globals()['GLOBAL_SUBJECT']} in {globals()['GLOBAL_LAB']}.")
             
             with st.form("student_attendance_form"):
                 st.subheader("Submit Attendance Details")
