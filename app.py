@@ -24,7 +24,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-# Responsive & Compact CSS
+# Responsive & Custom CSS
 st.markdown(
     """
     <style>
@@ -79,6 +79,54 @@ st.markdown(
         color: #334155 !important;
     }
 
+    /* Tight 3px Gap Row Layout for Session Action Buttons */
+    .session-btn-row {
+        display: flex !important;
+        gap: 3px !important;
+        width: 100% !important;
+    }
+    .session-btn-row > div {
+        flex: 1 !important;
+    }
+
+    /* Custom Soft Green Session Button */
+    .btn-green .stButton > button {
+        background-color: #22C55E !important;
+        color: #FFFFFF !important;
+        border: 1px solid #16A34A !important;
+        font-weight: 600 !important;
+        border-radius: 6px !important;
+        width: 100% !important;
+    }
+    .btn-green .stButton > button:hover {
+        background-color: #16A34A !important;
+        border-color: #15803D !important;
+    }
+
+    /* Custom Soft Red Session Button */
+    .btn-red .stButton > button {
+        background-color: #EF4444 !important;
+        color: #FFFFFF !important;
+        border: 1px solid #DC2626 !important;
+        font-weight: 600 !important;
+        border-radius: 6px !important;
+        width: 100% !important;
+    }
+    .btn-red .stButton > button:hover {
+        background-color: #DC2626 !important;
+        border-color: #B91C1C !important;
+    }
+
+    /* Full-width Refresh Button Styling */
+    .btn-refresh .stButton > button {
+        width: 100% !important;
+        margin-top: 6px !important;
+        border-radius: 6px !important;
+        background-color: #F1F5F9 !important;
+        color: #334155 !important;
+        border: 1px solid #CBD5E1 !important;
+    }
+
     /* Fixed Height & Compact Scrollable Table Container */
     div[data-testid="stVerticalBlockBorderWrapper"]:has(.scrollable-marker) {
         max-height: 320px !important;
@@ -103,17 +151,7 @@ st.markdown(
         border-radius: 4px;
     }
 
-    /* Compact Data Table Cell Layout */
-    .compact-row {
-        display: flex;
-        align-items: center;
-        padding: 4px 0;
-        border-bottom: 1px solid #F1F5F9;
-        font-size: 0.85rem !important;
-        line-height: 1.2 !important;
-    }
-
-    /* Fixed Compact Action Buttons */
+    /* Fixed Compact Action Buttons in Table */
     .action-btn-wrap .stButton > button {
         width: 58px !important;
         min-width: 58px !important;
@@ -544,33 +582,44 @@ elif st.session_state.current_page == "LecturerDashboard":
         ],
     )
 
-    btn_col1, btn_col2, btn_col3, _ = st.columns([2.6, 2.0, 2.0, 3.4])
-    with btn_col1:
-        if st.button("Get Attendance (Activate Session)", type="primary"):
-            if lec_lat is None or lec_lon is None:
-                st.error("GPS coordinates needed to activate session.")
-            else:
-                global_store["session_active"] = True
-                global_store["subject"] = lecturer_subject
-                global_store["lab"] = lecturer_lab
-                global_store["lecturer_lat"] = lec_lat
-                global_store["lecturer_lon"] = lec_lon
-                global_store["submitted_students"].clear()
-                st.success(
-                    f"Session activated for {lecturer_subject} at {lecturer_lab}."
-                )
-                st.rerun()
+    # 1. ACTION BUTTON AREA WITH SOFT GREEN (LEFT), SOFT RED (RIGHT), AND REFRESH UNDERNEATH
+    btn_container, _ = st.columns([5, 5])
+    with btn_container:
+        st.markdown('<div class="session-btn-row">', unsafe_allow_html=True)
+        col_left, col_right = st.columns([1, 1])
+        
+        with col_left:
+            st.markdown('<div class="btn-green">', unsafe_allow_html=True)
+            if st.button("Get Attendance"):
+                if lec_lat is None or lec_lon is None:
+                    st.error("GPS coordinates needed to activate session.")
+                else:
+                    global_store["session_active"] = True
+                    global_store["subject"] = lecturer_subject
+                    global_store["lab"] = lecturer_lab
+                    global_store["lecturer_lat"] = lec_lat
+                    global_store["lecturer_lon"] = lec_lon
+                    global_store["submitted_students"].clear()
+                    st.success(
+                        f"Session activated for {lecturer_subject} at {lecturer_lab}."
+                    )
+                    st.rerun()
+            st.markdown('</div>', unsafe_allow_html=True)
 
-    with btn_col2:
-        if st.button("Refresh Attendance Table"):
-            st.rerun()
-
-    with btn_col3:
-        if global_store["session_active"]:
-            if st.button("Close Attendance Session"):
+        with col_right:
+            st.markdown('<div class="btn-red">', unsafe_allow_html=True)
+            if st.button("Close Session", disabled=not global_store["session_active"]):
                 global_store["session_active"] = False
                 st.success("Attendance session has been closed.")
                 st.rerun()
+            st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+
+        # Refresh button placed underneath both action buttons
+        st.markdown('<div class="btn-refresh">', unsafe_allow_html=True)
+        if st.button("Refresh Attendance Table"):
+            st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
 
     st.markdown("---")
     st.subheader("Attendance Record")
@@ -599,10 +648,8 @@ elif st.session_state.current_page == "LecturerDashboard":
 
         records_to_delete = []
 
-        # Tight Column Ratios to consolidate layout
         COL_RATIOS = [1.5, 1.1, 0.8, 0.6, 2.2, 1.8, 2.0]
 
-        # Compact Header Alignment
         h_ts, h_nm, h_mx, h_cl, h_sub, h_st, h_act = st.columns(COL_RATIOS)
         h_ts.caption("**Timestamp**")
         h_nm.caption("**Name**")
@@ -613,7 +660,6 @@ elif st.session_state.current_page == "LecturerDashboard":
         h_act.caption("**Actions**")
         st.markdown("<hr style='margin-top:0px; margin-bottom:4px; border-color:#CBD5E1;' />", unsafe_allow_html=True)
 
-        # COMPACT SCROLLABLE VERIFICATION ACTIONS CONTAINER
         with st.container(border=True):
             st.markdown('<div class="scrollable-marker"></div>', unsafe_allow_html=True)
             for idx, rec in enumerate(attendance_list):
@@ -626,7 +672,6 @@ elif st.session_state.current_page == "LecturerDashboard":
                 c_sub.markdown(f"<span style='font-size:0.8rem;'>{rec.get('Subject', '-')}</span>", unsafe_allow_html=True)
                 c_st.markdown(f"<span style='font-size:0.8rem;'>{rec.get('Status', '-')}</span>", unsafe_allow_html=True)
 
-                # Compact Button Row Alignment
                 with c_act:
                     act_col1, act_col2, act_col3 = st.columns([1, 1, 1])
                     
