@@ -3,7 +3,6 @@ import streamlit as st
 import datetime
 import pandas as pd
 import socket
-import psutil
 import models
 
 # ==========================================
@@ -16,35 +15,20 @@ if "GLOBAL_SESSION_ACTIVE" not in globals():
     GLOBAL_LECTURER_IP = ""
     GLOBAL_ATTENDANCE_DB = []
 
-# Helper function using psutil to find the active Wi-Fi interface IP address
-def get_real_wifi_ip():
+# Helper function to extract the REAL client laptop IP address
+def get_client_ip():
     try:
-        stats = psutil.net_if_stats()
-        addrs = psutil.net_if_addrs()
-
-        # Keywords to identify Wi-Fi adapter names across systems
-        wifi_keywords = ["wi-fi", "wifi", "wlan", "wireless"]
-
-        # 1. Search specifically for active Wi-Fi interfaces that are powered UP
-        for interface_name, addresses in addrs.items():
-            if any(kw in interface_name.lower() for kw in wifi_keywords):
-                if interface_name in stats and stats[interface_name].isup:
-                    for addr in addresses:
-                        if addr.family == socket.AF_INET and not addr.address.startswith("127."):
-                            return addr.address
-
-        # 2. Fallback: Search all active interfaces excluding virtual adapters
-        ignore_keywords = ["virtual", "vbox", "vmware", "hyper-v", "wsl", "loopback", "vethernet", "bluetooth"]
-        for interface_name, addresses in addrs.items():
-            if interface_name in stats and stats[interface_name].isup:
-                if not any(ik in interface_name.lower() for ik in ignore_keywords):
-                    for addr in addresses:
-                        if addr.family == socket.AF_INET and not addr.address.startswith("127."):
-                            return addr.address
+        # Streamlit Cloud passes the client's real public/local IP in x-forwarded-for HTTP header
+        headers = st.context.headers
+        if "x-forwarded-for" in headers:
+            # x-forwarded-for can return a comma-separated list; the first entry is the client
+            return headers["x-forwarded-for"].split(",")[0].strip()
+        elif "X-Forwarded-For" in headers:
+            return headers["X-Forwarded-For"].split(",")[0].strip()
     except Exception:
         pass
 
-    # 3. Last fallback: Socket probe to active router connection
+    # Local fallback when running 'streamlit run app.py' on localhost
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.connect(("8.8.8.8", 80))
@@ -91,8 +75,8 @@ if "show_absence_modal" not in st.session_state:
 if "pending_attendance_data" not in st.session_state:
     st.session_state.pending_attendance_data = None
 
-# Automatically detect active Wi-Fi IP address
-current_wifi_ip = get_real_wifi_ip()
+# Automatically detect client laptop IP address
+current_wifi_ip = get_client_ip()
 
 # ==========================================
 # PAGE 1: LANDING / SEPARATE LOGIN GATEWAY
@@ -100,7 +84,7 @@ current_wifi_ip = get_real_wifi_ip()
 if st.session_state.current_page == "Landing":
     st.title("Campus Attendance Management System")
     st.write("Please select your portal to proceed with authentication.")
-    st.info(f"Connected Wi-Fi IP Address: {current_wifi_ip}")
+    st.info(f"Connected Client IP Address: {current_wifi_ip}")
     st.markdown("---")
     
     col1, col2 = st.columns(2)
@@ -123,7 +107,7 @@ if st.session_state.current_page == "Landing":
 # ==========================================
 elif st.session_state.current_page == "LecturerLogin":
     st.title("Lecturer Portal Authentication")
-    st.info(f"Detected Active Wi-Fi IP: {current_wifi_ip}")
+    st.info(f"Detected Active IP: {current_wifi_ip}")
     
     if st.button("Back to Main Portal"):
         st.session_state.current_page = "Landing"
@@ -150,7 +134,7 @@ elif st.session_state.current_page == "LecturerLogin":
 # ==========================================
 elif st.session_state.current_page == "StudentLogin":
     st.title("Student Portal Authentication")
-    st.info(f"Detected Active Wi-Fi IP: {current_wifi_ip}")
+    st.info(f"Detected Active IP: {current_wifi_ip}")
     
     if st.button("Back to Main Portal"):
         st.session_state.current_page = "Landing"
@@ -178,7 +162,7 @@ elif st.session_state.current_page == "StudentLogin":
 elif st.session_state.current_page == "LecturerDashboard":
     st.title("Lecturer Control Dashboard")
     st.write(f"Logged in Lecturer: {st.session_state.lecturer_name} (ID: {st.session_state.lecturer_id})")
-    st.info(f"Lecturer Wi-Fi Host IP: {current_wifi_ip}")
+    st.info(f"Lecturer Host IP: {current_wifi_ip}")
     
     if st.button("Log Out"):
         st.session_state.current_page = "Landing"
@@ -196,7 +180,7 @@ elif st.session_state.current_page == "LecturerDashboard":
             globals()["GLOBAL_SUBJECT"] = lecturer_subject
             globals()["GLOBAL_LAB"] = lecturer_lab
             globals()["GLOBAL_LECTURER_IP"] = current_wifi_ip
-            st.success(f"Session activated for {lecturer_subject} at {lecturer_lab}. Host Wi-Fi IP Recorded: {current_wifi_ip}")
+            st.success(f"Session activated for {lecturer_subject} at {lecturer_lab}. Host IP Recorded: {current_wifi_ip}")
 
     st.markdown("---")
     st.subheader("Attendance")
@@ -219,7 +203,7 @@ elif st.session_state.current_page == "LecturerDashboard":
 elif st.session_state.current_page == "StudentDashboard":
     st.title("Student Attendance Portal")
     st.write(f"Logged in Student: {st.session_state.student_name} (Matrix: {st.session_state.student_matrix})")
-    st.info(f"Student Connected Wi-Fi IP: {current_wifi_ip}")
+    st.info(f"Student Connected IP: {current_wifi_ip}")
     
     if st.button("Log Out"):
         st.session_state.current_page = "Landing"
@@ -230,13 +214,13 @@ elif st.session_state.current_page == "StudentDashboard":
         lecturer_subnet = get_subnet(lecturer_ip)
         student_subnet = get_subnet(current_wifi_ip)
         
-        # Verify Wi-Fi network subnet match
+        # Verify network subnet match
         is_same_network = (lecturer_subnet == student_subnet)
         
         if not is_same_network:
-            st.error(f"Network Verification Failed: Lecturer Wi-Fi Subnet ({lecturer_subnet}.x) does not match your Wi-Fi Subnet ({student_subnet}.x). You must connect to the same Wi-Fi network to view and submit attendance.")
+            st.error(f"Network Verification Failed: Lecturer Subnet ({lecturer_subnet}.x) does not match your Subnet ({student_subnet}.x). You must connect to the same network to view and submit attendance.")
         else:
-            st.success(f"Network Verified: Connected to the same Wi-Fi network subnet as lecturer ({lecturer_subnet}.x). Active session for {globals()['GLOBAL_SUBJECT']} in {globals()['GLOBAL_LAB']}.")
+            st.success(f"Network Verified: Connected to the same network subnet as lecturer ({lecturer_subnet}.x). Active session for {globals()['GLOBAL_SUBJECT']} in {globals()['GLOBAL_LAB']}.")
             
             with st.form("student_attendance_form"):
                 st.subheader("Submit Attendance Details")
