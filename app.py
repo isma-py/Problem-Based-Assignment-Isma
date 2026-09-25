@@ -540,7 +540,8 @@ elif st.session_state.current_page == "LecturerDashboard":
         ],
     )
 
-    btn_col1, btn_col2, btn_col3, _ = st.columns([2.4, 1.8, 1.8, 4.0])
+    # Tight column proportions pack all 3 action buttons close to the left
+    btn_col1, btn_col2, btn_col3, _ = st.columns([2.6, 2.0, 2.0, 3.4])
     with btn_col1:
         if st.button("Get Attendance (Activate Session)", type="primary"):
             if lec_lat is None or lec_lon is None:
@@ -590,7 +591,7 @@ elif st.session_state.current_page == "LecturerDashboard":
         records_to_delete = []
 
         # Table Header
-        h_ts, h_nm, h_mx, h_sub, h_st, h_act = st.columns([1.5, 1.5, 1.2, 1.5, 1.2, 2.0])
+        h_ts, h_nm, h_mx, h_sub, h_st, h_act = st.columns([1.5, 1.5, 1.2, 1.5, 1.2, 1.5])
         h_ts.markdown("**Timestamp**")
         h_nm.markdown("**Name**")
         h_mx.markdown("**Matrix**")
@@ -601,7 +602,7 @@ elif st.session_state.current_page == "LecturerDashboard":
 
         # Table Rows
         for idx, rec in enumerate(attendance_list):
-            c_ts, c_nm, c_mx, c_sub, c_st, c_act = st.columns([1.5, 1.5, 1.2, 1.5, 1.2, 2.0])
+            c_ts, c_nm, c_mx, c_sub, c_st, c_act = st.columns([1.5, 1.5, 1.2, 1.5, 1.2, 1.5])
 
             c_ts.write(rec.get("Timestamp", "-"))
             c_nm.write(f"**{rec.get('Name', '-')}**")
@@ -609,30 +610,22 @@ elif st.session_state.current_page == "LecturerDashboard":
             c_sub.write(rec.get("Subject", "-"))
             c_st.write(rec.get("Status", "-"))
 
-            # Inline compact actions
+            # Stacked vertical actions
             with c_act:
-                act_cols = st.columns(3)
-                col_idx = 0
-
                 if rec.get("image_bytes"):
-                    with act_cols[col_idx]:
-                        if st.button("Photo", key=f"img_btn_{idx}", help="View Camera Photo"):
-                            st.session_state.selected_image_record = rec
-                            st.rerun()
-                    col_idx += 1
+                    if st.button("Photo", key=f"img_btn_{idx}", help="View Camera Photo"):
+                        st.session_state.selected_image_record = rec
+                        st.rerun()
 
                 if rec.get("doc_bytes"):
-                    with act_cols[col_idx]:
-                        if st.button("Doc", key=f"doc_btn_{idx}", help="View Document Proof"):
-                            st.session_state.selected_doc_record = rec
-                            st.rerun()
-                    col_idx += 1
+                    if st.button("Doc", key=f"doc_btn_{idx}", help="View Document Proof"):
+                        st.session_state.selected_doc_record = rec
+                        st.rerun()
 
-                with act_cols[col_idx]:
-                    st.markdown('<div class="action-btn-container-delete">', unsafe_allow_html=True)
-                    if st.button("Delete", key=f"del_btn_{idx}", help="Remove Record"):
-                        records_to_delete.append(idx)
-                    st.markdown('</div>', unsafe_allow_html=True)
+                st.markdown('<div class="action-btn-container-delete">', unsafe_allow_html=True)
+                if st.button("Delete", key=f"del_btn_{idx}", help="Remove Record"):
+                    records_to_delete.append(idx)
+                st.markdown('</div>', unsafe_allow_html=True)
 
         if records_to_delete:
             for d_idx in sorted(records_to_delete, reverse=True):
@@ -672,7 +665,6 @@ elif st.session_state.current_page == "StudentDashboard":
         f" **{st.session_state.student_matrix}**)"
     )
 
-    # Tight column proportions remove large gap between buttons
     col_out, col_ref, _ = st.columns([1.2, 2.2, 6.6])
     with col_out:
         if st.button("Log Out"):
