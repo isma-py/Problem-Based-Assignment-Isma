@@ -28,13 +28,21 @@ class AttendanceSystemState:
         self.lecturer_lat = None
         self.lecturer_lon = None
         self.attendance_db = []
-        self.submitted_students = set()
+        self._submitted_students = set()
 
-    def get_submitted_students(self):
+    @property
+    def submitted_students(self) -> set:
         """Safely retrieve or initialize submitted_students for cached instances."""
-        if not hasattr(self, "submitted_students"):
-            self.submitted_students = set()
-        return self.submitted_students
+        if not hasattr(self, "_submitted_students") or self._submitted_students is None:
+            self._submitted_students = set()
+        return self._submitted_students
+
+    @submitted_students.setter
+    def submitted_students(self, value):
+        if isinstance(value, set):
+            self._submitted_students = value
+        else:
+            self._submitted_students = set(value)
 
 
 @st.cache_resource
@@ -211,7 +219,7 @@ def confirm_absence_submission():
                 global_state.attendance_db.append(
                     st.session_state.pending_attendance_record
                 )
-                global_state.get_submitted_students().add(
+                global_state.submitted_students.add(
                     st.session_state.student_matrix
                 )
 
@@ -348,7 +356,7 @@ elif st.session_state.current_page == "LecturerDashboard":
                 global_state.lab = lecturer_lab
                 global_state.lecturer_lat = lec_lat
                 global_state.lecturer_lon = lec_lon
-                global_state.get_submitted_students().clear()
+                global_state.submitted_students.clear()
                 st.success(
                     f"Session activated for {lecturer_subject} at"
                     f" {lecturer_lab}."
@@ -444,7 +452,7 @@ elif st.session_state.current_page == "StudentDashboard":
     st.markdown("---")
 
     if global_state.session_active:
-        if st.session_state.student_matrix in global_state.get_submitted_students():
+        if st.session_state.student_matrix in global_state.submitted_students:
             st.success(
                 "You have already submitted your attendance for this active"
                 " session."
@@ -580,7 +588,7 @@ elif st.session_state.current_page == "StudentDashboard":
                                 st.rerun()
                             else:
                                 global_state.attendance_db.append(record_data)
-                                global_state.get_submitted_students().add(
+                                global_state.submitted_students.add(
                                     st.session_state.student_matrix
                                 )
 
