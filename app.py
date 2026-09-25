@@ -2,6 +2,7 @@
 import datetime
 import io
 import math
+import zoneinfo
 import cv2
 import numpy as np
 import pandas as pd
@@ -47,8 +48,8 @@ MAX_ALLOWED_DISTANCE_METERS = 50.0
 
 
 def get_current_local_datetime():
-    """Returns accurate current datetime aligned with the local system timezone."""
-    return datetime.datetime.now().astimezone()
+    """Returns accurate current datetime explicitly set to Malaysia Time (Asia/Kuala_Lumpur)."""
+    return datetime.datetime.now(zoneinfo.ZoneInfo("Asia/Kuala_Lumpur"))
 
 
 def calculate_distance(lat1, lon1, lat2, lon2):
@@ -107,13 +108,6 @@ def detect_face_in_image(image_bytes):
         return len(image_bytes) > 1000
 
 
-def colorize_attendance_row(row):
-    if "Present" in str(row["Status"]):
-        return ["background-color: #d4edda; color: #155724"] * len(row)
-    else:
-        return ["background-color: #f8d7da; color: #721c24"] * len(row)
-
-
 def generate_pdf_report(
     lecturer_name, lecturer_id, subject, lab, attendance_data
 ):
@@ -148,12 +142,12 @@ def generate_pdf_report(
     <b>Lecturer:</b> {lecturer_name} (ID: {lecturer_id})<br/>
     <b>Subject:</b> {subject if subject else 'N/A'}<br/>
     <b>Location:</b> {lab if lab else 'N/A'}<br/>
-    <b>Generated Date:</b> {now_local.strftime('%Y-%m-%d %H:%M:%S')}
+    <b>Generated Date (MYT):</b> {now_local.strftime('%Y-%m-%d %H:%M:%S')}<br/>
     """
     story.append(Paragraph(meta_text, normal_style))
     story.append(Spacer(1, 15))
 
-    table_data = [["Timestamp", "Name", "Matrix No.", "Status", "Attachment"]]
+    table_data = [["Timestamp (MYT)", "Name", "Matrix No.", "Status", "Attachment"]]
     for record in attendance_data:
         table_data.append([
             str(record.get("Timestamp", "")),
@@ -212,7 +206,7 @@ def show_student_image_modal():
     rec = st.session_state.selected_image_record
     if rec:
         st.write(f"**Student:** {rec.get('Name')} ({rec.get('Matrix')})")
-        st.write(f"**Submitted At:** {rec.get('Timestamp')}")
+        st.write(f"**Submitted At (MYT):** {rec.get('Timestamp')}")
         if rec.get("image_bytes"):
             st.image(
                 rec["image_bytes"],
@@ -385,14 +379,44 @@ elif st.session_state.current_page == "LecturerDashboard":
         lecturer_subject = st.selectbox(
             "Select Lecture Subject",
             [
-                "DFK50083 Python Programming",
-                "DBF50123 Database Systems",
-                "DTN50233 Network Security",
+                "DFK50083 PYTHON PROGRAMMING",
+                "DFK50093 COMPUTER NETWORK SECURITY",
+                "DFN50563 ADVANCED SERVER ADMINISTRATION",
+                "DFT501X4 INTEGRATED PROJECT",
+                "MPU21072PENGHAYATAN ETIKA & PERADABAN",
+                "MPU22071KURSUS INTEGRITI DAN ANTIRASUAH",
             ],
         )
         lecturer_lab = st.selectbox(
-            "Select Laboratory Location",
-            ["Lab Alpha", "Lab Beta", "Lab Gamma", "Networking Lab 1"],
+            "Select Laboratory / Classroom Location",
+            [
+                "ccna 1",
+                "ccna 2",
+                "cnl 1",
+                "cnl 2",
+                "it 1",
+                "it 2",
+                "apdv 1",
+                "apdv 2",
+                "LL1",
+                "LL2",
+                "DKU",
+                "DK1",
+                "DK2",
+                "DK3",
+                "DK4",
+                "BK1",
+                "BK2",
+                "BK3",
+                "BK4",
+                "BK5",
+                "BK6",
+                "BK7",
+                "BK8",
+                "BK9",
+                "BK10",
+                "BS-JPA",
+            ],
         )
         
         activate_btn = st.form_submit_button("Get Attendance (Activate Session)")
@@ -412,8 +436,8 @@ elif st.session_state.current_page == "LecturerDashboard":
                 )
                 st.rerun()
 
-        # All control buttons inside the exact same frame
-        col_btn1, col_btn2 = st.columns(2)
+        # Custom column ratios to keep buttons placed side by side closely
+        col_btn1, col_btn2, col_spacer = st.columns([1.1, 1.2, 2.0])
         with col_btn1:
             refresh_btn = st.form_submit_button("Refresh Attendance Table")
             if refresh_btn:
@@ -438,28 +462,16 @@ elif st.session_state.current_page == "LecturerDashboard":
             value=mc_count,
         )
 
-        # High-visibility Colorized Data Table
-        df_records = pd.DataFrame(attendance_list)
-        styled_df = df_records[[
-            "Timestamp",
-            "Name",
-            "Matrix",
-            "Subject",
-            "Lab",
-            "Status",
-            "File Name",
-        ]].style.apply(colorize_attendance_row, axis=1)
-        st.dataframe(styled_df, height=220, use_container_width=True)
+        st.markdown("<br/>", unsafe_allow_html=True)
 
-        st.markdown("**Record Actions & Evidence Viewers:**")
-
-        # Interactive Table Row Actions Grid
-        t_header = st.columns([1.5, 1.5, 1.2, 1.2, 1.5, 1.0])
+        # Single Integrated Interactive Attendance Table
+        t_header = st.columns([1.5, 1.5, 1.2, 1.6, 1.0, 1.0, 0.8])
         headers = [
-            "Timestamp",
+            "Timestamp (MYT)",
             "Name",
             "Matrix",
-            "Facial Photo",
+            "Status",
+            "Photo",
             "Document",
             "Action",
         ]
@@ -471,29 +483,43 @@ elif st.session_state.current_page == "LecturerDashboard":
         records_to_delete = []
 
         for idx, rec in enumerate(attendance_list):
-            row_cols = st.columns([1.5, 1.5, 1.2, 1.2, 1.5, 1.0])
+            row_cols = st.columns([1.5, 1.5, 1.2, 1.6, 1.0, 1.0, 0.8])
+            
             row_cols[0].write(rec.get("Timestamp", ""))
             row_cols[1].write(rec.get("Name", ""))
             row_cols[2].write(rec.get("Matrix", ""))
 
-            # Clickable "Show" Button for Camera Facial Image
+            # Color-coded Status Display
+            status_str = str(rec.get("Status", ""))
+            if "Present" in status_str:
+                row_cols[3].markdown(
+                    f"<div style='background-color: #d4edda; color: #155724; padding: 4px 8px; border-radius: 4px; font-weight: bold;'>{status_str}</div>",
+                    unsafe_allow_html=True,
+                )
+            else:
+                row_cols[3].markdown(
+                    f"<div style='background-color: #f8d7da; color: #721c24; padding: 4px 8px; border-radius: 4px; font-weight: bold;'>{status_str}</div>",
+                    unsafe_allow_html=True,
+                )
+
+            # Camera Facial Photo Viewer Button
             if rec.get("image_bytes"):
-                if row_cols[3].button("Show", key=f"img_btn_{idx}"):
+                if row_cols[4].button("View", key=f"img_btn_{idx}"):
                     st.session_state.selected_image_record = rec
                     st.rerun()
             else:
-                row_cols[3].write("N/A")
+                row_cols[4].write("N/A")
 
-            # Clickable "Show Document" Button for Uploaded Certificate
+            # Document / MC Attachment Viewer Button
             if rec.get("doc_bytes"):
-                if row_cols[4].button("Show Document", key=f"doc_btn_{idx}"):
+                if row_cols[5].button("View Doc", key=f"doc_btn_{idx}"):
                     st.session_state.selected_doc_record = rec
                     st.rerun()
             else:
-                row_cols[4].write("None")
+                row_cols[5].write("None")
 
-            # Clickable "Remove" Button to Delete Student Record
-            if row_cols[5].button("Remove", key=f"del_btn_{idx}"):
+            # Remove Record Button
+            if row_cols[6].button("Remove", key=f"del_btn_{idx}"):
                 records_to_delete.append(idx)
 
         if records_to_delete:
@@ -594,14 +620,14 @@ elif st.session_state.current_page == "StudentDashboard":
                 st.markdown("---")
 
                 if distance <= MAX_ALLOWED_DISTANCE_METERS:
-                    now_local = get_current_local_datetime()
+                    now_myt = get_current_local_datetime()
 
                     with st.form("student_attendance_form"):
                         attendance_date = st.date_input(
-                            "Select Date", value=now_local.date()
+                            "Select Date (MYT)", value=now_myt.date()
                         )
                         attendance_time = st.time_input(
-                            "Select Time", value=now_local.time()
+                            "Select Time (MYT)", value=now_myt.time()
                         )
                         attendance_status_type = st.selectbox(
                             "Attendance Status",
