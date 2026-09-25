@@ -18,6 +18,7 @@ def evaluate_standing(rate: float) -> str:
 class BaseAttendanceRecord:
     """Base class containing four attributes and two processing methods."""
     def __init__(self, student_name: str, matrix_no: str, lab_name: str, subject_name: str):
+        # Minimum four attributes
         self.student_name = student_name
         self.matrix_no = matrix_no
         self.lab_name = lab_name
