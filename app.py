@@ -16,7 +16,7 @@ from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 # ==========================================
-# STREAMLIT PAGE CONFIG & DYNAMIC LIGHT/DARK THEME
+# STREAMLIT PAGE CONFIG & SOFT LIGHT THEME
 # ==========================================
 st.set_page_config(
     page_title="Campus Attendance System",
@@ -24,113 +24,111 @@ st.set_page_config(
     layout="wide",
 )
 
-# Responsive CSS that automatically adapts based on Streamlit/Browser light or dark settings
+# Custom Eye-Friendly Soft Light Theme Styling
 st.markdown(
     """
     <style>
-    /* ==========================================
-       1. LIGHT MODE DEFAULT STYLES
-       ========================================== */
-    :root {
-        --card-bg: #FFFFFF;
-        --card-border: #E2E8F0;
-        --card-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.03);
-        --btn-bg: #64748B;
-        --btn-hover-bg: #475569;
-        --btn-text: #FFFFFF;
-        --input-bg: #F1F5F9;
-        --input-border: #CBD5E1;
-        --input-text: #334155;
-        --accent-color: #4338CA;
-        --primary-btn-bg: #4338CA;
-        --primary-btn-hover: #3730A3;
-        --hr-color: #E2E8F0;
+    /* Global Soft Light Background and Text Palette */
+    .stApp {
+        background-color: #F8FAFB;
+        color: #334155;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     }
 
-    /* ==========================================
-       2. DARK MODE OVERRIDES
-       ========================================== */
-    @media (prefers-color-scheme: dark) {
-        :root {
-            --card-bg: rgba(30, 41, 59, 0.7);
-            --card-border: rgba(148, 163, 184, 0.2);
-            --card-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
-            --btn-bg: rgba(100, 116, 139, 0.25);
-            --btn-hover-bg: rgba(100, 116, 139, 0.45);
-            --btn-text: #F8FAFC;
-            --input-bg: #1E293B;
-            --input-border: #475569;
-            --input-text: #F1F5F9;
-            --accent-color: #818CF8;
-            --primary-btn-bg: #6366F1;
-            --primary-btn-hover: #4F46E5;
-            --hr-color: rgba(148, 163, 184, 0.2);
-        }
-    }
-
-    /* Fallback override for Streamlit dark theme container selector */
-    [data-theme="dark"], [data-testid="stAppViewContainer"][class*="st-"] {
-        --card-bg: rgba(30, 41, 59, 0.7);
-        --card-border: rgba(148, 163, 184, 0.2);
-        --card-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
-        --btn-bg: rgba(100, 116, 139, 0.25);
-        --btn-hover-bg: rgba(100, 116, 139, 0.45);
-        --btn-text: #F8FAFC;
-        --input-bg: #1E293B;
-        --input-border: #475569;
-        --input-text: #F1F5F9;
-        --accent-color: #818CF8;
-        --primary-btn-bg: #6366F1;
-        --primary-btn-hover: #4F46E5;
-        --hr-color: rgba(148, 163, 184, 0.2);
-    }
-
-    /* Apply CSS variables across UI components */
+    /* Soft Form & Card Containers */
     div[data-testid="stForm"] {
-        background-color: var(--card-bg) !important;
-        border-radius: 12px !important;
-        padding: 24px !important;
-        border: 1px solid var(--card-border) !important;
-        box-shadow: var(--card-shadow) !important;
+        background-color: #FFFFFF;
+        border-radius: 12px;
+        padding: 24px;
+        border: 1px solid #E2E8F0;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
     }
 
+    /* Standard Interactive Buttons */
     .stButton > button {
-        background-color: var(--btn-bg) !important;
-        color: var(--btn-text) !important;
-        border-radius: 8px !important;
-        padding: 6px 12px !important;
-        font-weight: 500 !important;
-        width: 100% !important;
-        border: 1px solid var(--card-border) !important;
-        transition: all 0.2s ease-in-out !important;
+        background-color: #F1F5F9;
+        color: #475569;
+        border-radius: 8px;
+        padding: 6px 14px;
+        font-weight: 500;
+        width: 100%;
+        border: 1px solid #CBD5E1;
+        transition: all 0.2s ease-in-out;
     }
     .stButton > button:hover {
-        background-color: var(--btn-hover-bg) !important;
+        background-color: #E2E8F0;
+        color: #1E293B;
+        border-color: #94A3B8;
     }
 
+    /* Primary Accent Button (Soft Indigo) */
     button[kind="primary"] {
-        background-color: var(--primary-btn-bg) !important;
+        background-color: #6366F1 !important;
         color: #FFFFFF !important;
         border: none !important;
+        box-shadow: 0 2px 4px rgba(99, 102, 241, 0.2) !important;
     }
     button[kind="primary"]:hover {
-        background-color: var(--primary-btn-hover) !important;
+        background-color: #4F46E5 !important;
     }
 
+    /* Action Grid Row Box - Matches Table Width Layout Exactly */
+    .action-row-container {
+        background-color: #FFFFFF;
+        border-radius: 8px;
+        padding: 8px 12px;
+        border: 1px solid #E2E8F0;
+        margin-bottom: 6px;
+    }
+
+    /* Standard Text Action Buttons (Photo, Doc, Delete) */
+    .action-btn-container .stButton > button {
+        width: 100% !important;
+        height: 34px !important;
+        min-height: 34px !important;
+        padding: 4px 8px !important;
+        font-size: 13px !important;
+        font-weight: 500 !important;
+        line-height: 1.2 !important;
+        border-radius: 6px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+    }
+
+    /* Delete Button Specific Warning Style */
+    .action-btn-container-delete .stButton > button {
+        background-color: #FEF2F2 !important;
+        color: #DC2626 !important;
+        border-color: #FCA5A5 !important;
+    }
+    .action-btn-container-delete .stButton > button:hover {
+        background-color: #FEE2E2 !important;
+        color: #991B1B !important;
+        border-color: #F87171 !important;
+    }
+
+    /* Soft Inputs and Dropdowns */
     .stTextInput > div > div > input, .stSelectbox > div > div {
-        background-color: var(--input-bg) !important;
+        background-color: #F8FAFC !important;
         border-radius: 8px !important;
-        border: 1px solid var(--input-border) !important;
-        color: var(--input-text) !important;
+        border: 1px solid #CBD5E1 !important;
+        color: #334155 !important;
+    }
+    .stTextInput > div > div > input:focus, .stSelectbox > div > div:focus {
+        border-color: #818CF8 !important;
+        box-shadow: 0 0 0 2px rgba(129, 140, 248, 0.2) !important;
     }
 
+    /* Soft Accent Metric Values */
     [data-testid="stMetricValue"] {
-        color: var(--accent-color) !important;
-        font-weight: 600 !important;
+        color: #4F46E5;
+        font-weight: 600;
     }
 
+    /* Clean Soft Dividers */
     hr {
-        border-color: var(--hr-color) !important;
+        border-color: #E2E8F0;
     }
     </style>
     """,
@@ -616,23 +614,32 @@ elif st.session_state.current_page == "LecturerDashboard":
             
             with c_act:
                 act_btn1, act_btn2, act_btn3 = st.columns(3)
+                
                 with act_btn1:
                     if rec.get("image_bytes"):
-                        if st.button("📷", key=f"img_btn_{idx}", help="View Camera Photo"):
+                        st.markdown('<div class="action-btn-container">', unsafe_allow_html=True)
+                        if st.button("Photo", key=f"img_btn_{idx}", help="View Camera Photo"):
                             st.session_state.selected_image_record = rec
                             st.rerun()
+                        st.markdown('</div>', unsafe_allow_html=True)
                     else:
                         st.caption("-")
+                        
                 with act_btn2:
                     if rec.get("doc_bytes"):
-                        if st.button("📄", key=f"doc_btn_{idx}", help="View Document Proof"):
+                        st.markdown('<div class="action-btn-container">', unsafe_allow_html=True)
+                        if st.button("Doc", key=f"doc_btn_{idx}", help="View Document Proof"):
                             st.session_state.selected_doc_record = rec
                             st.rerun()
+                        st.markdown('</div>', unsafe_allow_html=True)
                     else:
                         st.caption("-")
+                        
                 with act_btn3:
-                    if st.button("🗑️", key=f"del_btn_{idx}", help="Remove Record"):
+                    st.markdown('<div class="action-btn-container action-btn-container-delete">', unsafe_allow_html=True)
+                    if st.button("Delete", key=f"del_btn_{idx}", help="Remove Record"):
                         records_to_delete.append(idx)
+                    st.markdown('</div>', unsafe_allow_html=True)
 
         if records_to_delete:
             for d_idx in sorted(records_to_delete, reverse=True):
