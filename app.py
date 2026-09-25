@@ -117,20 +117,49 @@ st.markdown(
         color: #334155 !important;
     }
 
-    /* Actions Column: Tight Vertical Layout */
+    /* Fixed Height & Scrollable Table Container */
+    div[data-testid="stVerticalBlockBorderWrapper"]:has(.scrollable-marker) {
+        max-height: 380px !important;
+        overflow-y: auto !important;
+        padding-right: 8px !important;
+        border: 1px solid #E2E8F0;
+        border-radius: 8px;
+        background-color: #FFFFFF;
+        padding: 12px !important;
+    }
+
+    /* Scrollbar Styling */
+    div[data-testid="stVerticalBlockBorderWrapper"]:has(.scrollable-marker)::-webkit-scrollbar {
+        width: 6px;
+    }
+    div[data-testid="stVerticalBlockBorderWrapper"]:has(.scrollable-marker)::-webkit-scrollbar-track {
+        background: #F1F5F9;
+        border-radius: 4px;
+    }
+    div[data-testid="stVerticalBlockBorderWrapper"]:has(.scrollable-marker)::-webkit-scrollbar-thumb {
+        background: #CBD5E1;
+        border-radius: 4px;
+    }
+    div[data-testid="stVerticalBlockBorderWrapper"]:has(.scrollable-marker)::-webkit-scrollbar-thumb:hover {
+        background: #94A3B8;
+    }
+
+    /* Actions Column: Inline Horizontal Layout */
     .action-btn-container {
-        display: flex;
-        flex-direction: column;
-        gap: 4px !important; /* Slight 4px gap between stacked buttons */
-        margin-top: -8px;
+        display: flex !important;
+        flex-direction: row !important;
+        align-items: center !important;
+        gap: 6px !important;
     }
     .action-btn-container .stButton {
+        flex: 1 !important;
         margin-bottom: 0px !important;
     }
     .action-btn-container .stButton > button {
-        min-height: 32px !important;
+        min-height: 34px !important;
         padding: 4px 8px !important;
         margin: 0 !important;
+        font-size: 0.85rem !important;
     }
 
     /* Action Grid Delete Styling */
@@ -280,17 +309,18 @@ def generate_pdf_report(
     story.append(Paragraph(meta_text, normal_style))
     story.append(Spacer(1, 15))
 
-    table_data = [["Timestamp (MYT)", "Name", "Matrix No.", "Status", "Attachment"]]
+    table_data = [["Timestamp (MYT)", "Name", "Matrix No.", "Class", "Status", "Attachment"]]
     for record in attendance_data:
         table_data.append([
             str(record.get("Timestamp", "")),
             str(record.get("Name", "")),
             str(record.get("Matrix", "")),
+            str(record.get("Class", "")),
             str(record.get("Status", "")),
             str(record.get("File Name", "None")),
         ])
 
-    pdf_table = Table(table_data, colWidths=[110, 120, 90, 120, 110])
+    pdf_table = Table(table_data, colWidths=[100, 110, 80, 60, 100, 90])
     pdf_table.setStyle(
         TableStyle([
             ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#334155")),
@@ -323,6 +353,8 @@ if "student_name" not in st.session_state:
     st.session_state.student_name = ""
 if "student_matrix" not in st.session_state:
     st.session_state.student_matrix = ""
+if "student_class" not in st.session_state:
+    st.session_state.student_class = ""
 if "show_absence_modal" not in st.session_state:
     st.session_state.show_absence_modal = False
 if "pending_attendance_record" not in st.session_state:
@@ -339,6 +371,7 @@ def show_student_image_modal():
     rec = st.session_state.selected_image_record
     if rec:
         st.write(f"**Student:** {rec.get('Name')} ({rec.get('Matrix')})")
+        st.write(f"**Class:** {rec.get('Class', 'N/A')}")
         st.write(f"**Submitted At (MYT):** {rec.get('Timestamp')}")
         if rec.get("image_bytes"):
             st.image(
@@ -355,6 +388,7 @@ def show_document_modal():
     rec = st.session_state.selected_doc_record
     if rec:
         st.write(f"**Student:** {rec.get('Name')} ({rec.get('Matrix')})")
+        st.write(f"**Class:** {rec.get('Class', 'N/A')}")
         st.write(f"**Document Name:** {rec.get('doc_name', 'Attachment')}")
 
         doc_bytes = rec.get("doc_bytes")
@@ -402,6 +436,7 @@ def confirm_absence_submission():
 
                 st.session_state.student_name = ""
                 st.session_state.student_matrix = ""
+                st.session_state.student_class = ""
                 st.session_state.current_page = "Landing"
                 st.rerun()
     with col_cancel:
@@ -476,11 +511,17 @@ elif st.session_state.current_page == "StudentLogin":
     with st.form("student_login_form"):
         stud_name_input = st.text_input("Enter Full Name:")
         stud_matrix_input = st.text_input("Enter Matrix Number:")
+        stud_class_input = st.text_input("Enter Class:")
         stud_login_btn = st.form_submit_button("Log In")
         if stud_login_btn:
-            if stud_name_input.strip() and stud_matrix_input.strip():
+            if (
+                stud_name_input.strip()
+                and stud_matrix_input.strip()
+                and stud_class_input.strip()
+            ):
                 st.session_state.student_name = stud_name_input
                 st.session_state.student_matrix = stud_matrix_input
+                st.session_state.student_class = stud_class_input
                 st.session_state.current_page = "StudentDashboard"
                 st.rerun()
             else:
@@ -597,7 +638,7 @@ elif st.session_state.current_page == "LecturerDashboard":
         )
 
         df = pd.DataFrame(attendance_list)
-        display_columns = ["Timestamp", "Name", "Matrix", "Subject", "Lab", "Status", "File Name"]
+        display_columns = ["Timestamp", "Name", "Matrix", "Class", "Subject", "Lab", "Status", "File Name"]
         existing_cols = [c for c in display_columns if c in df.columns]
         st.dataframe(df[existing_cols], use_container_width=True)
 
@@ -605,46 +646,51 @@ elif st.session_state.current_page == "LecturerDashboard":
 
         records_to_delete = []
 
-        # Table Header
-        h_ts, h_nm, h_mx, h_sub, h_st, h_act = st.columns([1.5, 1.5, 1.2, 1.5, 1.2, 1.5])
+        # Fixed Header Outside Scroll Area
+        h_ts, h_nm, h_mx, h_cl, h_sub, h_st, h_act = st.columns([1.3, 1.3, 1.1, 0.9, 1.3, 1.1, 2.0])
         h_ts.markdown("**Timestamp**")
         h_nm.markdown("**Name**")
         h_mx.markdown("**Matrix**")
+        h_cl.markdown("**Class**")
         h_sub.markdown("**Subject**")
         h_st.markdown("**Status**")
         h_act.markdown("**Actions**")
-        st.markdown("<hr style='margin-top:2px; margin-bottom:10px;' />", unsafe_allow_html=True)
+        st.markdown("<hr style='margin-top:2px; margin-bottom:8px;' />", unsafe_allow_html=True)
 
-        # Table Rows
-        for idx, rec in enumerate(attendance_list):
-            c_ts, c_nm, c_mx, c_sub, c_st, c_act = st.columns([1.5, 1.5, 1.2, 1.5, 1.2, 1.5])
+        # Scrollable Fixed Container Box
+        with st.container(border=True):
+            st.markdown('<div class="scrollable-marker"></div>', unsafe_allow_html=True)
+            for idx, rec in enumerate(attendance_list):
+                c_ts, c_nm, c_mx, c_cl, c_sub, c_st, c_act = st.columns([1.3, 1.3, 1.1, 0.9, 1.3, 1.1, 2.0])
 
-            c_ts.write(rec.get("Timestamp", "-"))
-            c_nm.write(f"**{rec.get('Name', '-')}**")
-            c_mx.write(rec.get("Matrix", "-"))
-            c_sub.write(rec.get("Subject", "-"))
-            c_st.write(rec.get("Status", "-"))
+                c_ts.write(rec.get("Timestamp", "-"))
+                c_nm.write(f"**{rec.get('Name', '-')}**")
+                c_mx.write(rec.get("Matrix", "-"))
+                c_cl.write(rec.get("Class", "-"))
+                c_sub.write(rec.get("Subject", "-"))
+                c_st.write(rec.get("Status", "-"))
 
-            # Closely stacked vertical actions container
-            with c_act:
-                st.markdown('<div class="action-btn-container">', unsafe_allow_html=True)
-                
-                if rec.get("image_bytes"):
-                    if st.button("Photo", key=f"img_btn_{idx}", help="View Camera Photo"):
-                        st.session_state.selected_image_record = rec
-                        st.rerun()
+                # Side-by-side horizontal actions in sub-columns
+                with c_act:
+                    act_cols = st.columns(3)
+                    
+                    with act_cols[0]:
+                        if rec.get("image_bytes"):
+                            if st.button("Photo", key=f"img_btn_{idx}", help="View Camera Photo"):
+                                st.session_state.selected_image_record = rec
+                                st.rerun()
 
-                if rec.get("doc_bytes"):
-                    if st.button("Doc", key=f"doc_btn_{idx}", help="View Document Proof"):
-                        st.session_state.selected_doc_record = rec
-                        st.rerun()
+                    with act_cols[1]:
+                        if rec.get("doc_bytes"):
+                            if st.button("Doc", key=f"doc_btn_{idx}", help="View Document Proof"):
+                                st.session_state.selected_doc_record = rec
+                                st.rerun()
 
-                st.markdown('<div class="action-btn-container-delete">', unsafe_allow_html=True)
-                if st.button("Delete", key=f"del_btn_{idx}", help="Remove Record"):
-                    records_to_delete.append(idx)
-                st.markdown('</div>', unsafe_allow_html=True)
-                
-                st.markdown('</div>', unsafe_allow_html=True)
+                    with act_cols[2]:
+                        st.markdown('<div class="action-btn-container-delete">', unsafe_allow_html=True)
+                        if st.button("Delete", key=f"del_btn_{idx}", help="Remove Record"):
+                            records_to_delete.append(idx)
+                        st.markdown('</div>', unsafe_allow_html=True)
 
         if records_to_delete:
             for d_idx in sorted(records_to_delete, reverse=True):
@@ -680,8 +726,9 @@ elif st.session_state.current_page == "LecturerDashboard":
 elif st.session_state.current_page == "StudentDashboard":
     st.title("Student Dashboard")
     st.write(
-        f"Logged in Student: **{st.session_state.student_name}** (Matrix:"
-        f" **{st.session_state.student_matrix}**)"
+        f"Logged in Student: **{st.session_state.student_name}** | Matrix:"
+        f" **{st.session_state.student_matrix}** | Class:"
+        f" **{st.session_state.student_class}**"
     )
 
     col_out, col_ref, _ = st.columns([1.2, 2.2, 6.6])
@@ -689,6 +736,7 @@ elif st.session_state.current_page == "StudentDashboard":
         if st.button("Log Out"):
             st.session_state.student_name = ""
             st.session_state.student_matrix = ""
+            st.session_state.student_class = ""
             st.session_state.current_page = "Landing"
             st.rerun()
     with col_ref:
@@ -828,6 +876,7 @@ elif st.session_state.current_page == "StudentDashboard":
                                 "Timestamp": timestamp_str,
                                 "Name": st.session_state.student_name,
                                 "Matrix": st.session_state.student_matrix,
+                                "Class": st.session_state.student_class,
                                 "Subject": global_store["subject"],
                                 "Lab": global_store["lab"],
                                 "Status": attendance_status_type,
@@ -855,6 +904,7 @@ elif st.session_state.current_page == "StudentDashboard":
 
                                 st.session_state.student_name = ""
                                 st.session_state.student_matrix = ""
+                                st.session_state.student_class = ""
                                 st.session_state.current_page = "Landing"
                                 st.rerun()
             else:
