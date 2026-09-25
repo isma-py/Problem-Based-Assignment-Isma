@@ -496,7 +496,7 @@ elif st.session_state.current_page == "LecturerDashboard":
         st.subheader("Checking Location")
         st.warning("Waiting for browser location authorization...")
 
-    st.subheader("Configure Class Session Parameters")
+    st.subheader("Class Session")
     lecturer_subject = st.selectbox(
         "Select Lecture Subject",
         [
@@ -540,8 +540,7 @@ elif st.session_state.current_page == "LecturerDashboard":
         ],
     )
 
-    # Session control buttons placed side by side horizontally
-    btn_col1, btn_col2, btn_col3 = st.columns([2, 2, 2])
+    btn_col1, btn_col2, btn_col3, _ = st.columns([2.4, 1.8, 1.8, 4.0])
     with btn_col1:
         if st.button("Get Attendance (Activate Session)", type="primary"):
             if lec_lat is None or lec_lon is None:
@@ -610,7 +609,7 @@ elif st.session_state.current_page == "LecturerDashboard":
             c_sub.write(rec.get("Subject", "-"))
             c_st.write(rec.get("Status", "-"))
 
-            # Actions placed inline next to each other
+            # Inline compact actions
             with c_act:
                 act_cols = st.columns(3)
                 col_idx = 0
@@ -673,7 +672,8 @@ elif st.session_state.current_page == "StudentDashboard":
         f" **{st.session_state.student_matrix}**)"
     )
 
-    col_out, col_ref, _ = st.columns([1, 2, 3])
+    # Tight column proportions remove large gap between buttons
+    col_out, col_ref, _ = st.columns([1.2, 2.2, 6.6])
     with col_out:
         if st.button("Log Out"):
             st.session_state.student_name = ""
