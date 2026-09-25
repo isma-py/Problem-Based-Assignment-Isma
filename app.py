@@ -46,6 +46,11 @@ global_store.setdefault("submitted_students", set())
 MAX_ALLOWED_DISTANCE_METERS = 50.0
 
 
+def get_current_local_datetime():
+    """Returns accurate current datetime aligned with the local system timezone."""
+    return datetime.datetime.now().astimezone()
+
+
 def calculate_distance(lat1, lon1, lat2, lon2):
     R = 6371000.0  # Radius of Earth in meters
     phi1 = math.radians(lat1)
@@ -138,11 +143,12 @@ def generate_pdf_report(
     )
     story.append(Spacer(1, 10))
 
+    now_local = get_current_local_datetime()
     meta_text = f"""
     <b>Lecturer:</b> {lecturer_name} (ID: {lecturer_id})<br/>
     <b>Subject:</b> {subject if subject else 'N/A'}<br/>
     <b>Location:</b> {lab if lab else 'N/A'}<br/>
-    <b>Generated Date:</b> {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+    <b>Generated Date:</b> {now_local.strftime('%Y-%m-%d %H:%M:%S')}
     """
     story.append(Paragraph(meta_text, normal_style))
     story.append(Spacer(1, 15))
@@ -416,6 +422,7 @@ elif st.session_state.current_page == "LecturerDashboard":
                     f"Session activated for {lecturer_subject} at"
                     f" {lecturer_lab}."
                 )
+                st.rerun()
 
     st.markdown("---")
     st.subheader("Live Attendance Records")
@@ -429,7 +436,7 @@ elif st.session_state.current_page == "LecturerDashboard":
             value=mc_count,
         )
 
-        # Styled Colored Table View
+        # High-visibility Colorized Data Table
         df_records = pd.DataFrame(attendance_list)
         styled_df = df_records[[
             "Timestamp",
@@ -440,26 +447,29 @@ elif st.session_state.current_page == "LecturerDashboard":
             "Status",
             "File Name",
         ]].style.apply(colorize_attendance_row, axis=1)
-        st.dataframe(styled_df, height=250, use_container_width=True)
+        st.dataframe(styled_df, height=220, use_container_width=True)
 
-        st.markdown("**Evidence Actions / Document Viewers:**")
-        
-        # Interactive Modal Actions Grid
-        t_header = st.columns([1.5, 1.5, 1.2, 1.2, 1.8])
+        st.markdown("**Record Actions & Evidence Viewers:**")
+
+        # Interactive Table Row Actions Grid (With Direct Delete Button)
+        t_header = st.columns([1.5, 1.5, 1.2, 1.2, 1.5, 1.0])
         headers = [
             "Timestamp",
             "Name",
             "Matrix",
-            "Facial Capture",
-            "Document Attachment",
+            "Facial Photo",
+            "Document",
+            "Action",
         ]
         for idx, head in enumerate(headers):
             t_header[idx].markdown(f"**{head}**")
 
         st.markdown("---")
 
+        records_to_delete = []
+
         for idx, rec in enumerate(attendance_list):
-            row_cols = st.columns([1.5, 1.5, 1.2, 1.2, 1.8])
+            row_cols = st.columns([1.5, 1.5, 1.2, 1.2, 1.5, 1.0])
             row_cols[0].write(rec.get("Timestamp", ""))
             row_cols[1].write(rec.get("Name", ""))
             row_cols[2].write(rec.get("Matrix", ""))
@@ -480,6 +490,19 @@ elif st.session_state.current_page == "LecturerDashboard":
             else:
                 row_cols[4].write("None")
 
+            # Clickable "Remove" Button to Delete Student Record
+            if row_cols[5].button("Remove", key=f"del_btn_{idx}"):
+                records_to_delete.append(idx)
+
+        if records_to_delete:
+            for d_idx in sorted(records_to_delete, reverse=True):
+                removed_rec = global_store["attendance_db"].pop(d_idx)
+                removed_matrix = removed_rec.get("Matrix")
+                if removed_matrix in global_store["submitted_students"]:
+                    global_store["submitted_students"].remove(removed_matrix)
+            st.success("Student record successfully removed.")
+            st.rerun()
+
         st.markdown("---")
 
         pdf_bytes = generate_pdf_report(
@@ -493,7 +516,7 @@ elif st.session_state.current_page == "LecturerDashboard":
         st.download_button(
             label="Download Attendance PDF Report",
             data=pdf_bytes,
-            file_name=f"Attendance_Report_{datetime.date.today()}.pdf",
+            file_name=f"Attendance_Report_{get_current_local_datetime().strftime('%Y-%m-%d')}.pdf",
             mime="application/pdf",
         )
     else:
@@ -569,12 +592,14 @@ elif st.session_state.current_page == "StudentDashboard":
                 st.markdown("---")
 
                 if distance <= MAX_ALLOWED_DISTANCE_METERS:
+                    now_local = get_current_local_datetime()
+
                     with st.form("student_attendance_form"):
                         attendance_date = st.date_input(
-                            "Select Date", value=datetime.date.today()
+                            "Select Date", value=now_local.date()
                         )
                         attendance_time = st.time_input(
-                            "Select Time", value=datetime.datetime.now().time()
+                            "Select Time", value=now_local.time()
                         )
                         attendance_status_type = st.selectbox(
                             "Attendance Status",
@@ -648,10 +673,10 @@ elif st.session_state.current_page == "StudentDashboard":
                                 == "Absent with Medical Certificate / Memo"
                             )
 
+                            timestamp_str = f"{attendance_date} {attendance_time.strftime('%H:%M:%S')}"
+
                             record_data = {
-                                "Timestamp": (
-                                    f"{attendance_date} {attendance_time}"
-                                ),
+                                "Timestamp": timestamp_str,
                                 "Name": st.session_state.student_name,
                                 "Matrix": st.session_state.student_matrix,
                                 "Subject": global_store["subject"],
