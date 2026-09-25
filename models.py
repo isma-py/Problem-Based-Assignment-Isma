@@ -16,24 +16,23 @@ def evaluate_standing(rate: float) -> str:
         return "Non-Compliant - Action Required"
 
 class BaseAttendanceRecord:
-    """Base class containing four attributes and two processing methods."""
+    """Base class containing core attendance attributes and methods."""
     def __init__(self, student_name: str, matrix_no: str, lab_name: str, subject_name: str):
-        # Minimum four attributes
         self.student_name = student_name
         self.matrix_no = matrix_no
         self.lab_name = lab_name
         self.subject_name = subject_name
 
     def process_record_summary(self) -> str:
-        """Method 1: Processes and formats basic record information."""
+        """Processes and formats basic record information."""
         return f"Student: {self.student_name} | Matrix: {self.matrix_no} | Subject: {self.subject_name} ({self.lab_name})"
 
     def calculate_metrics(self) -> int:
-        """Method 2: Performs a data processing calculation on attributes."""
+        """Performs a data processing calculation on attributes."""
         return len(self.matrix_no) * 10
 
 class VerifiedAttendanceRecord(BaseAttendanceRecord):
-    """Subclass demonstrating inheritance with a modified feature (MC tracking)."""
+    """Subclass demonstrating inheritance with MC tracking."""
     def __init__(self, student_name: str, matrix_no: str, lab_name: str, subject_name: str, has_mc: bool, mc_reason: str):
         super().__init__(student_name, matrix_no, lab_name, subject_name)
         self.has_mc = has_mc

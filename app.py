@@ -2,7 +2,8 @@
 import streamlit as st
 import datetime
 import pandas as pd
-import socket
+import math
+from streamlit_js_eval import get_geolocation
 import models
 
 # ==========================================
@@ -12,38 +13,27 @@ if "GLOBAL_SESSION_ACTIVE" not in globals():
     GLOBAL_SESSION_ACTIVE = False
     GLOBAL_SUBJECT = ""
     GLOBAL_LAB = ""
-    GLOBAL_LECTURER_IP = ""
+    GLOBAL_LECTURER_LAT = None
+    GLOBAL_LECTURER_LON = None
     GLOBAL_ATTENDANCE_DB = []
 
-# Helper function to extract the REAL client laptop IP address
-def get_client_ip():
-    try:
-        # Streamlit Cloud passes the client's real public/local IP in x-forwarded-for HTTP header
-        headers = st.context.headers
-        if "x-forwarded-for" in headers:
-            # x-forwarded-for can return a comma-separated list; the first entry is the client
-            return headers["x-forwarded-for"].split(",")[0].strip()
-        elif "X-Forwarded-For" in headers:
-            return headers["X-Forwarded-For"].split(",")[0].strip()
-    except Exception:
-        pass
+# Maximum allowable physical distance between student and lecturer (in meters)
+MAX_ALLOWED_DISTANCE_METERS = 50.0
 
-    # Local fallback when running 'streamlit run app.py' on localhost
-    try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))
-        ip = s.getsockname()[0]
-        s.close()
-        return ip
-    except Exception:
-        return "127.0.0.1"
+# Helper function: Calculate distance between two GPS coordinates using Haversine Formula
+def calculate_distance(lat1, lon1, lat2, lon2):
+    R = 6371000.0  # Radius of Earth in meters
+    phi1 = math.radians(lat1)
+    phi2 = math.radians(lat2)
+    delta_phi = math.radians(lat2 - lat1)
+    delta_lambda = math.radians(lon2 - lon1)
 
-# Helper function to extract network subnet prefix (first 3 octets, e.g., 192.168.1)
-def get_subnet(ip_address):
-    parts = ip_address.split(".")
-    if len(parts) >= 3:
-        return ".".join(parts[:3])
-    return ip_address
+    a = math.sin(delta_phi / 2.0) ** 2 + \
+        math.cos(phi1) * math.cos(phi2) * \
+        math.sin(delta_lambda / 2.0) ** 2
+
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    return R * c
 
 # Styling helper function for soft-color row highlights
 def colorize_attendance_row(row):
@@ -75,16 +65,12 @@ if "show_absence_modal" not in st.session_state:
 if "pending_attendance_data" not in st.session_state:
     st.session_state.pending_attendance_data = None
 
-# Automatically detect client laptop IP address
-current_wifi_ip = get_client_ip()
-
 # ==========================================
 # PAGE 1: LANDING / SEPARATE LOGIN GATEWAY
 # ==========================================
 if st.session_state.current_page == "Landing":
     st.title("Campus Attendance Management System")
     st.write("Please select your portal to proceed with authentication.")
-    st.info(f"Connected Client IP Address: {current_wifi_ip}")
     st.markdown("---")
     
     col1, col2 = st.columns(2)
@@ -107,7 +93,6 @@ if st.session_state.current_page == "Landing":
 # ==========================================
 elif st.session_state.current_page == "LecturerLogin":
     st.title("Lecturer Portal Authentication")
-    st.info(f"Detected Active IP: {current_wifi_ip}")
     
     if st.button("Back to Main Portal"):
         st.session_state.current_page = "Landing"
@@ -134,7 +119,6 @@ elif st.session_state.current_page == "LecturerLogin":
 # ==========================================
 elif st.session_state.current_page == "StudentLogin":
     st.title("Student Portal Authentication")
-    st.info(f"Detected Active IP: {current_wifi_ip}")
     
     if st.button("Back to Main Portal"):
         st.session_state.current_page = "Landing"
@@ -162,12 +146,26 @@ elif st.session_state.current_page == "StudentLogin":
 elif st.session_state.current_page == "LecturerDashboard":
     st.title("Lecturer Control Dashboard")
     st.write(f"Logged in Lecturer: {st.session_state.lecturer_name} (ID: {st.session_state.lecturer_id})")
-    st.info(f"Lecturer Host IP: {current_wifi_ip}")
     
     if st.button("Log Out"):
         st.session_state.current_page = "Landing"
         st.rerun()
         
+    st.subheader("Classroom Location Verification")
+    st.info("Please allow browser location access so the system can set the classroom boundary for students.")
+    
+    # Prompt browser for lecturer's GPS location
+    loc = get_geolocation()
+    
+    lec_lat = None
+    lec_lon = None
+    if loc and "coords" in loc:
+        lec_lat = loc["coords"]["latitude"]
+        lec_lon = loc["coords"]["longitude"]
+        st.success(f"Classroom GPS Coordinates Captured: Lat {lec_lat:.5f}, Lon {lec_lon:.5f}")
+    else:
+        st.warning("Waiting for browser location authorization... Please click 'Allow' if prompted by your browser.")
+
     with st.form("lecturer_session_form"):
         st.subheader("Configure Class Session Parameters")
         lecturer_subject = st.selectbox("Select Lecture Subject", ["DFK50083 Python Programming", "DBF50123 Database Systems", "DTN50233 Network Security"])
@@ -176,14 +174,18 @@ elif st.session_state.current_page == "LecturerDashboard":
         activate_btn = st.form_submit_button("Get Attendance (Activate Session)")
         
         if activate_btn:
-            globals()["GLOBAL_SESSION_ACTIVE"] = True
-            globals()["GLOBAL_SUBJECT"] = lecturer_subject
-            globals()["GLOBAL_LAB"] = lecturer_lab
-            globals()["GLOBAL_LECTURER_IP"] = current_wifi_ip
-            st.success(f"Session activated for {lecturer_subject} at {lecturer_lab}. Host IP Recorded: {current_wifi_ip}")
+            if lec_lat is None or lec_lon is None:
+                st.error("Cannot activate session without GPS location. Please allow browser location access and try again.")
+            else:
+                globals()["GLOBAL_SESSION_ACTIVE"] = True
+                globals()["GLOBAL_SUBJECT"] = lecturer_subject
+                globals()["GLOBAL_LAB"] = lecturer_lab
+                globals()["GLOBAL_LECTURER_LAT"] = lec_lat
+                globals()["GLOBAL_LECTURER_LON"] = lec_lon
+                st.success(f"Session activated for {lecturer_subject} at {lecturer_lab}. Physical boundary set within {MAX_ALLOWED_DISTANCE_METERS} meters.")
 
     st.markdown("---")
-    st.subheader("Attendance")
+    st.subheader("Attendance Records")
     
     if globals()["GLOBAL_ATTENDANCE_DB"]:
         st.write(f"Total Subscriptions Logged: {len(globals()['GLOBAL_ATTENDANCE_DB'])}")
@@ -203,102 +205,114 @@ elif st.session_state.current_page == "LecturerDashboard":
 elif st.session_state.current_page == "StudentDashboard":
     st.title("Student Attendance Portal")
     st.write(f"Logged in Student: {st.session_state.student_name} (Matrix: {st.session_state.student_matrix})")
-    st.info(f"Student Connected IP: {current_wifi_ip}")
     
     if st.button("Log Out"):
         st.session_state.current_page = "Landing"
         st.rerun()
         
     if globals()["GLOBAL_SESSION_ACTIVE"]:
-        lecturer_ip = globals()["GLOBAL_LECTURER_IP"]
-        lecturer_subnet = get_subnet(lecturer_ip)
-        student_subnet = get_subnet(current_wifi_ip)
+        st.subheader("Location Verification")
+        st.info("Please enable location access in your browser to verify physical classroom attendance.")
         
-        # Verify network subnet match
-        is_same_network = (lecturer_subnet == student_subnet)
+        # Prompt browser for student's GPS location
+        student_loc = get_geolocation()
         
-        if not is_same_network:
-            st.error(f"Network Verification Failed: Lecturer Subnet ({lecturer_subnet}.x) does not match your Subnet ({student_subnet}.x). You must connect to the same network to view and submit attendance.")
+        if not student_loc or "coords" not in student_loc:
+            st.warning("Awaiting GPS location acquisition. Please ensure browser location permissions are granted.")
         else:
-            st.success(f"Network Verified: Connected to the same network subnet as lecturer ({lecturer_subnet}.x). Active session for {globals()['GLOBAL_SUBJECT']} in {globals()['GLOBAL_LAB']}.")
+            student_lat = student_loc["coords"]["latitude"]
+            student_lon = student_loc["coords"]["longitude"]
             
-            with st.form("student_attendance_form"):
-                st.subheader("Submit Attendance Details")
-                
-                attendance_date = st.date_input("Select Date", value=datetime.date.today())
-                attendance_time = st.time_input("Select Time", value=datetime.datetime.now().time())
-                
-                attendance_status_type = st.selectbox("Attendance Status", ["Present", "Absent with Medical Certificate / Memo"])
-                mc_reason_input = st.text_input("Reason for Absence / Medical Condition (if applicable):")
-                uploaded_file = st.file_uploader("Upload Medical Certificate or Absence Memo (PDF/Image)", type=["pdf", "png", "jpg"])
-                
-                submit_attempt_btn = st.form_submit_button("Submit Attendance Record")
-                
-                if submit_attempt_btn:
-                    try:
-                        if attendance_status_type == "Absent with Medical Certificate / Memo" and not mc_reason_input.strip():
-                            raise ValueError("Please provide a reason or details for your medical certificate/memo.")
-                        
-                        has_mc_flag = (attendance_status_type == "Absent with Medical Certificate / Memo")
-                        file_name_str = uploaded_file.name if uploaded_file else "No File Attached"
-                        
-                        if attendance_status_type == "Absent with Medical Certificate / Memo" and file_name_str == "No File Attached":
-                            st.session_state.show_absence_modal = True
-                            st.session_state.pending_attendance_data = {
-                                "Timestamp": str(f"{attendance_date} {attendance_time}"),
-                                "Name": st.session_state.student_name,
-                                "Matrix": st.session_state.student_matrix,
-                                "Subject": globals()["GLOBAL_SUBJECT"],
-                                "Lab": globals()["GLOBAL_LAB"],
-                                "Status": attendance_status_type,
-                                "summary": f"Student: {st.session_state.student_name} | Matrix: {st.session_state.student_matrix} - Absent with No Evidence",
-                                "has_mc": False,
-                                "File Name": "No File Attached"
-                            }
-                        else:
-                            record_obj = models.VerifiedAttendanceRecord(
-                                student_name=st.session_state.student_name,
-                                matrix_no=st.session_state.student_matrix,
-                                lab_name=globals()["GLOBAL_LAB"],
-                                subject_name=globals()["GLOBAL_SUBJECT"],
-                                has_mc=has_mc_flag,
-                                mc_reason=mc_reason_input if has_mc_flag else "None"
-                            )
-                            
-                            record_data = {
-                                "Timestamp": str(f"{attendance_date} {attendance_time}"),
-                                "Name": st.session_state.student_name,
-                                "Matrix": st.session_state.student_matrix,
-                                "Subject": globals()["GLOBAL_SUBJECT"],
-                                "Lab": globals()["GLOBAL_LAB"],
-                                "Status": attendance_status_type,
-                                "summary": record_obj.process_record_summary(),
-                                "has_mc": has_mc_flag,
-                                "File Name": file_name_str
-                            }
-                            globals()["GLOBAL_ATTENDANCE_DB"].append(record_data)
-                            st.success("Attendance submitted and recorded into the database successfully.")
-                            
-                    except ValueError as ve:
-                        st.error(f"Validation Error: {ve}")
-                    except Exception as e:
-                        st.error(f"An unexpected error occurred during processing: {e}")
+            lec_lat = globals()["GLOBAL_LECTURER_LAT"]
+            lec_lon = globals()["GLOBAL_LECTURER_LON"]
             
-            # Modal Warning implementation using Streamlit containers/warnings
-            if st.session_state.show_absence_modal:
-                st.warning("Warning Modal Reminder: You did not upload a medical certificate or memo. If you proceed, this will be counted as absence with no evidence. You can still confirm submission below.")
-                col_m1, col_m2 = st.columns(2)
-                with col_m1:
-                    if st.button("Confirm Submit Without Evidence"):
-                        globals()["GLOBAL_ATTENDANCE_DB"].append(st.session_state.pending_attendance_data)
-                        st.session_state.show_absence_modal = False
-                        st.session_state.pending_attendance_data = None
-                        st.success("Absence recorded successfully without attached evidence.")
-                        st.rerun()
-                with col_m2:
-                    if st.button("Cancel & Go Back to Upload"):
-                        st.session_state.show_absence_modal = False
-                        st.session_state.pending_attendance_data = None
-                        st.rerun()
+            # Calculate physical distance in meters between lecturer and student
+            distance = calculate_distance(lec_lat, lec_lon, student_lat, student_lon)
+            
+            st.write(f"Calculated distance to classroom: **{distance:.1f} meters**")
+            
+            if distance > MAX_ALLOWED_DISTANCE_METERS:
+                st.error(f"Location Verification Failed: You are {distance:.1f} meters away from the classroom. Submissions are restricted to within {MAX_ALLOWED_DISTANCE_METERS} meters.")
+            else:
+                st.success(f"Location Verified: You are within the classroom boundary ({distance:.1f}m away). Active session for {globals()['GLOBAL_SUBJECT']} in {globals()['GLOBAL_LAB']}.")
+                
+                with st.form("student_attendance_form"):
+                    st.subheader("Submit Attendance Details")
+                    
+                    attendance_date = st.date_input("Select Date", value=datetime.date.today())
+                    attendance_time = st.time_input("Select Time", value=datetime.datetime.now().time())
+                    
+                    attendance_status_type = st.selectbox("Attendance Status", ["Present", "Absent with Medical Certificate / Memo"])
+                    mc_reason_input = st.text_input("Reason for Absence / Medical Condition (if applicable):")
+                    uploaded_file = st.file_uploader("Upload Medical Certificate or Absence Memo (PDF/Image)", type=["pdf", "png", "jpg"])
+                    
+                    submit_attempt_btn = st.form_submit_button("Submit Attendance Record")
+                    
+                    if submit_attempt_btn:
+                        try:
+                            if attendance_status_type == "Absent with Medical Certificate / Memo" and not mc_reason_input.strip():
+                                raise ValueError("Please provide a reason or details for your medical certificate/memo.")
+                            
+                            has_mc_flag = (attendance_status_type == "Absent with Medical Certificate / Memo")
+                            file_name_str = uploaded_file.name if uploaded_file else "No File Attached"
+                            
+                            if attendance_status_type == "Absent with Medical Certificate / Memo" and file_name_str == "No File Attached":
+                                st.session_state.show_absence_modal = True
+                                st.session_state.pending_attendance_data = {
+                                    "Timestamp": str(f"{attendance_date} {attendance_time}"),
+                                    "Name": st.session_state.student_name,
+                                    "Matrix": st.session_state.student_matrix,
+                                    "Subject": globals()["GLOBAL_SUBJECT"],
+                                    "Lab": globals()["GLOBAL_LAB"],
+                                    "Status": attendance_status_type,
+                                    "summary": f"Student: {st.session_state.student_name} | Matrix: {st.session_state.student_matrix} - Absent with No Evidence",
+                                    "has_mc": False,
+                                    "File Name": "No File Attached"
+                                }
+                            else:
+                                record_obj = models.VerifiedAttendanceRecord(
+                                    student_name=st.session_state.student_name,
+                                    matrix_no=st.session_state.student_matrix,
+                                    lab_name=globals()["GLOBAL_LAB"],
+                                    subject_name=globals()["GLOBAL_SUBJECT"],
+                                    has_mc=has_mc_flag,
+                                    mc_reason=mc_reason_input if has_mc_flag else "None"
+                                )
+                                
+                                record_data = {
+                                    "Timestamp": str(f"{attendance_date} {attendance_time}"),
+                                    "Name": st.session_state.student_name,
+                                    "Matrix": st.session_state.student_matrix,
+                                    "Subject": globals()["GLOBAL_SUBJECT"],
+                                    "Lab": globals()["GLOBAL_LAB"],
+                                    "Status": attendance_status_type,
+                                    "summary": record_obj.process_record_summary(),
+                                    "has_mc": has_mc_flag,
+                                    "File Name": file_name_str
+                                }
+                                globals()["GLOBAL_ATTENDANCE_DB"].append(record_data)
+                                st.success("Attendance submitted and recorded into the database successfully.")
+                                
+                        except ValueError as ve:
+                            st.error(f"Validation Error: {ve}")
+                        except Exception as e:
+                            st.error(f"An unexpected error occurred during processing: {e}")
+                
+                # Modal Warning implementation using Streamlit containers
+                if st.session_state.show_absence_modal:
+                    st.warning("Warning Modal Reminder: You did not upload a medical certificate or memo. If you proceed, this will be counted as absence with no evidence. You can still confirm submission below.")
+                    col_m1, col_m2 = st.columns(2)
+                    with col_m1:
+                        if st.button("Confirm Submit Without Evidence"):
+                            globals()["GLOBAL_ATTENDANCE_DB"].append(st.session_state.pending_attendance_data)
+                            st.session_state.show_absence_modal = False
+                            st.session_state.pending_attendance_data = None
+                            st.success("Absence recorded successfully without attached evidence.")
+                            st.rerun()
+                    with col_m2:
+                        if st.button("Cancel & Go Back to Upload"):
+                            st.session_state.show_absence_modal = False
+                            st.session_state.pending_attendance_data = None
+                            st.rerun()
     else:
         st.warning("Attendance session is currently closed. Please wait until the lecturer triggers the attendance session reminder.")
