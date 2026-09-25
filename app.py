@@ -16,7 +16,7 @@ from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 # ==========================================
-# STREAMLIT PAGE CONFIG & SOFT COLOR THEME
+# STREAMLIT PAGE CONFIG & DYNAMIC LIGHT/DARK THEME
 # ==========================================
 st.set_page_config(
     page_title="Campus Attendance System",
@@ -24,87 +24,113 @@ st.set_page_config(
     layout="wide",
 )
 
-# Soft & Smooth Color Palette CSS
+# Responsive CSS that automatically adapts based on Streamlit/Browser light or dark settings
 st.markdown(
     """
     <style>
-    /* Global Page Styling */
-    .stApp {
-        background-color: #F8FAFC;
-        color: #334155;
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    /* ==========================================
+       1. LIGHT MODE DEFAULT STYLES
+       ========================================== */
+    :root {
+        --card-bg: #FFFFFF;
+        --card-border: #E2E8F0;
+        --card-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.03);
+        --btn-bg: #64748B;
+        --btn-hover-bg: #475569;
+        --btn-text: #FFFFFF;
+        --input-bg: #F1F5F9;
+        --input-border: #CBD5E1;
+        --input-text: #334155;
+        --accent-color: #4338CA;
+        --primary-btn-bg: #4338CA;
+        --primary-btn-hover: #3730A3;
+        --hr-color: #E2E8F0;
     }
 
-    /* Primary Container / Card styling */
+    /* ==========================================
+       2. DARK MODE OVERRIDES
+       ========================================== */
+    @media (prefers-color-scheme: dark) {
+        :root {
+            --card-bg: rgba(30, 41, 59, 0.7);
+            --card-border: rgba(148, 163, 184, 0.2);
+            --card-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+            --btn-bg: rgba(100, 116, 139, 0.25);
+            --btn-hover-bg: rgba(100, 116, 139, 0.45);
+            --btn-text: #F8FAFC;
+            --input-bg: #1E293B;
+            --input-border: #475569;
+            --input-text: #F1F5F9;
+            --accent-color: #818CF8;
+            --primary-btn-bg: #6366F1;
+            --primary-btn-hover: #4F46E5;
+            --hr-color: rgba(148, 163, 184, 0.2);
+        }
+    }
+
+    /* Fallback override for Streamlit dark theme container selector */
+    [data-theme="dark"], [data-testid="stAppViewContainer"][class*="st-"] {
+        --card-bg: rgba(30, 41, 59, 0.7);
+        --card-border: rgba(148, 163, 184, 0.2);
+        --card-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+        --btn-bg: rgba(100, 116, 139, 0.25);
+        --btn-hover-bg: rgba(100, 116, 139, 0.45);
+        --btn-text: #F8FAFC;
+        --input-bg: #1E293B;
+        --input-border: #475569;
+        --input-text: #F1F5F9;
+        --accent-color: #818CF8;
+        --primary-btn-bg: #6366F1;
+        --primary-btn-hover: #4F46E5;
+        --hr-color: rgba(148, 163, 184, 0.2);
+    }
+
+    /* Apply CSS variables across UI components */
     div[data-testid="stForm"] {
-        background-color: #FFFFFF;
-        border-radius: 12px;
-        padding: 24px;
-        border: 1px solid #E2E8F0;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.03), 0 2px 4px -1px rgba(0, 0, 0, 0.02);
+        background-color: var(--card-bg) !important;
+        border-radius: 12px !important;
+        padding: 24px !important;
+        border: 1px solid var(--card-border) !important;
+        box-shadow: var(--card-shadow) !important;
     }
 
-    /* Smooth Buttons */
     .stButton > button {
-        background-color: #64748B;
-        color: #FFFFFF !important;
-        border: none;
-        border-radius: 8px;
-        padding: 8px 16px;
-        font-weight: 500;
-        transition: all 0.2s ease-in-out;
+        background-color: var(--btn-bg) !important;
+        color: var(--btn-text) !important;
+        border-radius: 8px !important;
+        padding: 6px 12px !important;
+        font-weight: 500 !important;
+        width: 100% !important;
+        border: 1px solid var(--card-border) !important;
+        transition: all 0.2s ease-in-out !important;
     }
     .stButton > button:hover {
-        background-color: #475569;
-        color: #FFFFFF !important;
-        box-shadow: 0 4px 12px rgba(71, 85, 105, 0.15);
+        background-color: var(--btn-hover-bg) !important;
     }
 
-    /* Primary Action Buttons */
     button[kind="primary"] {
-        background-color: #4338CA !important;
+        background-color: var(--primary-btn-bg) !important;
         color: #FFFFFF !important;
+        border: none !important;
     }
     button[kind="primary"]:hover {
-        background-color: #3730A3 !important;
+        background-color: var(--primary-btn-hover) !important;
     }
 
-    /* Input Fields */
     .stTextInput > div > div > input, .stSelectbox > div > div {
-        background-color: #F1F5F9;
-        border-radius: 8px;
-        border: 1px solid #CBD5E1;
-        color: #334155;
-    }
-    .stTextInput > div > div > input:focus {
-        border-color: #818CF8;
-        box-shadow: 0 0 0 2px rgba(129, 140, 248, 0.2);
+        background-color: var(--input-bg) !important;
+        border-radius: 8px !important;
+        border: 1px solid var(--input-border) !important;
+        color: var(--input-text) !important;
     }
 
-    /* Soft Success, Alert, and Warning Boxes */
-    .stAlert {
-        border-radius: 8px;
-        border: none;
-    }
-    div[data-baseweb="notification"] {
-        border-radius: 8px;
-    }
-
-    /* Metrics Styling */
     [data-testid="stMetricValue"] {
-        color: #4338CA;
-        font-weight: 600;
+        color: var(--accent-color) !important;
+        font-weight: 600 !important;
     }
-    
-    /* Headings styling */
-    h1, h2, h3 {
-        color: #1E293B;
-        font-weight: 600;
-    }
-    
-    /* Horizontal Rule */
+
     hr {
-        border-color: #E2E8F0;
+        border-color: var(--hr-color) !important;
     }
     </style>
     """,
@@ -222,7 +248,7 @@ def generate_pdf_report(
         parent=styles["Heading1"],
         fontSize=18,
         leading=22,
-        textColor=colors.HexColor("#334155"),
+        textColor=colors.HexColor("#1E293B"),
     )
     normal_style = styles["Normal"]
 
@@ -254,7 +280,7 @@ def generate_pdf_report(
     pdf_table = Table(table_data, colWidths=[110, 120, 90, 120, 110])
     pdf_table.setStyle(
         TableStyle([
-            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#475569")),
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#334155")),
             ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
             ("ALIGN", (0, 0), (-1, -1), "LEFT"),
             ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
@@ -562,33 +588,51 @@ elif st.session_state.current_page == "LecturerDashboard":
 
         st.markdown("### Attachment & Verification Actions")
         
+        # Matches identical column width proportion ratio of full attendance dataframe view
+        col_ratios = [1.5, 1.5, 1.2, 1.5, 1.5, 1.2, 1.2]
+        
+        # Table-style header matching the exact width layout of the Attendance Records above
+        h_ts, h_nm, h_mx, h_sub, h_lab, h_st, h_act = st.columns(col_ratios)
+        h_ts.markdown("**Timestamp**")
+        h_nm.markdown("**Name**")
+        h_mx.markdown("**Matrix**")
+        h_sub.markdown("**Subject**")
+        h_lab.markdown("**Lab**")
+        h_st.markdown("**Status**")
+        h_act.markdown("**Verification Actions**")
+        st.markdown("<hr style='margin-top:2px; margin-bottom:10px;' />", unsafe_allow_html=True)
+
         records_to_delete = []
 
         for idx, rec in enumerate(attendance_list):
-            col_info, col_img, col_doc, col_del = st.columns([3, 1.2, 1.2, 1.2])
+            c_ts, c_nm, c_mx, c_sub, c_lab, c_st, c_act = st.columns(col_ratios)
             
-            with col_info:
-                st.write(f"**{idx + 1}. {rec.get('Name')}** ({rec.get('Matrix')}) - *{rec.get('Status')}*")
+            c_ts.write(rec.get("Timestamp", "-"))
+            c_nm.write(f"**{rec.get('Name', '-')}**")
+            c_mx.write(rec.get("Matrix", "-"))
+            c_sub.write(rec.get("Subject", "-"))
+            c_lab.write(rec.get("Lab", "-"))
+            c_st.write(rec.get("Status", "-"))
             
-            with col_img:
-                if rec.get("image_bytes"):
-                    if st.button("View Photo", key=f"img_btn_{idx}"):
-                        st.session_state.selected_image_record = rec
-                        st.rerun()
-                else:
-                    st.caption("No Photo")
-
-            with col_doc:
-                if rec.get("doc_bytes"):
-                    if st.button("View Doc", key=f"doc_btn_{idx}"):
-                        st.session_state.selected_doc_record = rec
-                        st.rerun()
-                else:
-                    st.caption("No Doc")
-
-            with col_del:
-                if st.button("Remove", key=f"del_btn_{idx}"):
-                    records_to_delete.append(idx)
+            with c_act:
+                act_btn1, act_btn2, act_btn3 = st.columns(3)
+                with act_btn1:
+                    if rec.get("image_bytes"):
+                        if st.button("📷", key=f"img_btn_{idx}", help="View Camera Photo"):
+                            st.session_state.selected_image_record = rec
+                            st.rerun()
+                    else:
+                        st.caption("-")
+                with act_btn2:
+                    if rec.get("doc_bytes"):
+                        if st.button("📄", key=f"doc_btn_{idx}", help="View Document Proof"):
+                            st.session_state.selected_doc_record = rec
+                            st.rerun()
+                    else:
+                        st.caption("-")
+                with act_btn3:
+                    if st.button("🗑️", key=f"del_btn_{idx}", help="Remove Record"):
+                        records_to_delete.append(idx)
 
         if records_to_delete:
             for d_idx in sorted(records_to_delete, reverse=True):
