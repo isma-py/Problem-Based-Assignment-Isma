@@ -4,8 +4,9 @@ import datetime
 import pandas as pd
 import math
 import io
+import cv2
+import numpy as np
 from streamlit_js_eval import get_geolocation
-import models
 
 # ReportLab imports for generating PDF reports
 from reportlab.lib.pagesizes import letter
@@ -48,6 +49,21 @@ def calculate_distance(lat1, lon1, lat2, lon2):
     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
     return R * c
 
+def detect_face_in_image(image_bytes):
+    """Strictly checks if a human face is present in the image using OpenCV Haar Cascades."""
+    try:
+        file_bytes = np.asarray(bytearray(image_bytes), dtype=np.uint8)
+        img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        
+        # Load Haar Cascade face detector
+        face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+        faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
+        
+        return len(faces) > 0
+    except Exception:
+        return False
+
 def colorize_attendance_row(row):
     if "Present" in str(row["Status"]):
         return ['background-color: #d4edda; color: #155724'] * len(row)
@@ -76,7 +92,6 @@ def generate_pdf_report(lecturer_name, lecturer_id, subject, lab, attendance_dat
     story.append(Paragraph(meta_text, normal_style))
     story.append(Spacer(1, 15))
 
-    # Table Header & Data Setup
     table_data = [["Timestamp", "Name", "Matrix No.", "Status", "Attachment"]]
     for record in attendance_data:
         table_data.append([
@@ -119,8 +134,36 @@ if "student_matrix" not in st.session_state:
     st.session_state.student_matrix = ""
 if "show_absence_modal" not in st.session_state:
     st.session_state.show_absence_modal = False
-if "pending_attendance_data" not in st.session_state:
-    st.session_state.pending_attendance_data = None
+if "pending_attendance_record" not in st.session_state:
+    st.session_state.pending_attendance_record = None
+
+# Separate Dialog Modal ONLY for Medical Certificate / Absence Acknowledgement
+@st.dialog("Medical Certificate / Absence Confirmation")
+def confirm_absence_submission():
+    st.info("Medical Certificate / Memo Notice")
+    st.write(
+        "You are submitting an absence record. Please ensure any attached document or medical memo "
+        "is valid and legible for lecturer verification."
+    )
+    col_confirm, col_cancel = st.columns(2)
+    with col_confirm:
+        if st.button("Confirm & Submit Attendance"):
+            if st.session_state.pending_attendance_record:
+                global_state.attendance_db.append(st.session_state.pending_attendance_record)
+                st.session_state.pending_attendance_record = None
+                st.session_state.show_absence_modal = False
+                st.session_state.student_name = ""
+                st.session_state.student_matrix = ""
+                st.session_state.current_page = "Landing"
+                st.rerun()
+    with col_cancel:
+        if st.button("Cancel"):
+            st.session_state.pending_attendance_record = None
+            st.session_state.show_absence_modal = False
+            st.rerun()
+
+if st.session_state.show_absence_modal:
+    confirm_absence_submission()
 
 # ==========================================
 # PAGE 1: LANDING
@@ -204,7 +247,7 @@ elif st.session_state.current_page == "LecturerDashboard":
     lec_lat, lec_lon = None, None
     if loc and "coords" in loc:
         lec_lat, lec_lon = loc["coords"]["latitude"], loc["coords"]["longitude"]
-        st.success(f"Classroom GPS Coordinates Captured: Lat {lec_lat:.5f}, Lon {lec_lon:.5f}")
+        st.success("Classroom location captured successfully.")
     else:
         st.warning("Waiting for browser location authorization...")
 
@@ -235,9 +278,22 @@ elif st.session_state.current_page == "LecturerDashboard":
         
         df_records = pd.DataFrame(global_state.attendance_db)
         styled_df = df_records[['Timestamp', 'Name', 'Matrix', 'Subject', 'Lab', 'Status', 'File Name']].style.apply(colorize_attendance_row, axis=1)
-        st.dataframe(styled_df, height=350, use_container_width=True)
+        st.dataframe(styled_df, height=250, use_container_width=True)
         
-        # GENERATE AND DOWNLOAD PDF REPORT
+        records_with_images = [r for r in global_state.attendance_db if r.get("image_bytes") is not None]
+        if records_with_images:
+            st.subheader("Submitted Evidence / Facial Captures")
+            img_cols = st.columns(min(3, len(records_with_images)))
+            for idx, rec in enumerate(records_with_images):
+                with img_cols[idx % 3]:
+                    st.image(
+                        rec["image_bytes"],
+                        caption=f"{rec['Name']} ({rec['Matrix']}) - {rec['File Name']}",
+                        use_container_width=True
+                    )
+        
+        st.markdown("---")
+        
         pdf_bytes = generate_pdf_report(
             st.session_state.lecturer_name,
             st.session_state.lecturer_id,
@@ -260,66 +316,79 @@ elif st.session_state.current_page == "LecturerDashboard":
 # ==========================================
 elif st.session_state.current_page == "StudentDashboard":
     st.title("Student Attendance Portal")
-    st.write(f"Logged in Student: {st.session_state.student_name} (Matrix: {st.session_state.student_matrix})")
+    st.write(f"Logged in Student: **{st.session_state.student_name}** (Matrix: **{st.session_state.student_matrix}**)")
     
     col_out, col_ref = st.columns([1, 4])
     with col_out:
         if st.button("Log Out"):
+            st.session_state.student_name = ""
+            st.session_state.student_matrix = ""
             st.session_state.current_page = "Landing"
             st.rerun()
     with col_ref:
         if st.button("Sync Class Session Status"):
             st.rerun()
 
-    student_loc = get_geolocation()
-    student_lat, student_lon = None, None
-    if student_loc and "coords" in student_loc:
-        student_lat, student_lon = student_loc["coords"]["latitude"], student_loc["coords"]["longitude"]
-        st.success(f"Student GPS Captured: Lat {student_lat:.5f}, Lon {student_lon:.5f}")
-
     st.markdown("---")
 
     if global_state.session_active:
-        st.success(f"ACTIVE SESSION: {global_state.subject} ({global_state.lab})")
+        st.markdown(f"**Active Session:** {global_state.subject} ({global_state.lab})")
         
-        if student_lat is None or student_lon is None:
-            st.info("Awaiting student GPS authorization...")
-        else:
+        student_loc = get_geolocation()
+        student_lat, student_lon = None, None
+        
+        if student_loc and "coords" in student_loc:
+            student_lat, student_lon = student_loc["coords"]["latitude"], student_loc["coords"]["longitude"]
             distance = calculate_distance(global_state.lecturer_lat, global_state.lecturer_lon, student_lat, student_lon)
-            st.write(f"Distance to classroom: **{distance:.1f} meters**")
             
-            if distance > MAX_ALLOWED_DISTANCE_METERS:
-                st.error(f"Verification Failed: You are {distance:.1f}m away (Max allowed: {MAX_ALLOWED_DISTANCE_METERS}m).")
+            if distance <= MAX_ALLOWED_DISTANCE_METERS:
+                st.success("Location Status: Verified (Inside designated classroom area)")
             else:
-                st.success("Location Verified. Submit details below.")
+                st.error("Location Status: Verification Failed (Outside designated classroom area)")
                 
+            st.markdown("---")
+            
+            if distance <= MAX_ALLOWED_DISTANCE_METERS:
                 with st.form("student_attendance_form"):
                     attendance_date = st.date_input("Select Date", value=datetime.date.today())
                     attendance_time = st.time_input("Select Time", value=datetime.datetime.now().time())
                     attendance_status_type = st.selectbox("Attendance Status", ["Present", "Absent with Medical Certificate / Memo"])
                     mc_reason_input = st.text_input("Reason (if applicable):")
                     
-                    st.write("**Attach Evidence / Medical Certificate (if absent):**")
+                    st.markdown("---")
+                    st.write("**Identity & Verification Option:**")
+                    st.warning("Facial Camera Requirement: Photo capture strictly requires a visible human face in the camera frame.")
                     
-                    # TABBED UI: Upload vs. Camera capture
-                    tab_upload, tab_camera = st.tabs(["Upload File (PDF/Image)", "Take Photo with Camera"])
+                    tab_upload, tab_camera = st.tabs(["Upload Document / Memo (Optional)", "Take Facial Camera Photo (Required if no file)"])
                     
                     with tab_upload:
-                        uploaded_file = st.file_uploader("Upload Medical Certificate", type=["pdf", "png", "jpg"], key="mc_file_uploader")
+                        uploaded_file = st.file_uploader("Upload Medical Certificate / Memo", type=["pdf", "png", "jpg"], key="mc_file_uploader")
                     
                     with tab_camera:
-                        camera_photo = st.camera_input("Take a photo of your Medical Certificate / Memo", key="mc_camera_input")
+                        camera_photo = st.camera_input("Capture live facial verification photo", key="mc_camera_input")
                     
                     submit_attempt_btn = st.form_submit_button("Submit Attendance Record")
                     
                     if submit_attempt_btn:
-                        # Determine which evidence method was used
                         file_name_str = "No File Attached"
-                        if uploaded_file is not None:
-                            file_name_str = uploaded_file.name
-                        elif camera_photo is not None:
-                            file_name_str = f"Camera_Snapshot_{st.session_state.student_matrix}.jpg"
+                        img_bytes = None
+                        
+                        # Validate Camera Photo for Facial Presence
+                        if camera_photo is not None:
+                            img_bytes = camera_photo.getvalue()
+                            face_detected = detect_face_in_image(img_bytes)
                             
+                            if not face_detected:
+                                st.error("Facial Verification Failed: No human face detected in the photo. Please frame your face clearly and try again.")
+                                st.stop()
+                            else:
+                                file_name_str = f"Facial_Verification_{st.session_state.student_matrix}.jpg"
+                        
+                        elif uploaded_file is not None:
+                            file_name_str = uploaded_file.name
+                            if uploaded_file.type in ["image/png", "image/jpeg", "image/jpg"]:
+                                img_bytes = uploaded_file.getvalue()
+                        
                         has_mc_flag = (attendance_status_type == "Absent with Medical Certificate / Memo")
                         
                         record_data = {
@@ -330,9 +399,22 @@ elif st.session_state.current_page == "StudentDashboard":
                             "Lab": global_state.lab,
                             "Status": attendance_status_type,
                             "has_mc": has_mc_flag,
-                            "File Name": file_name_str
+                            "File Name": file_name_str,
+                            "image_bytes": img_bytes
                         }
-                        global_state.attendance_db.append(record_data)
-                        st.success("Attendance submitted successfully.")
+                        
+                        # Memo modal popup for absent status (can be submitted without strict face requirement)
+                        if has_mc_flag:
+                            st.session_state.pending_attendance_record = record_data
+                            st.session_state.show_absence_modal = True
+                            st.rerun()
+                        else:
+                            global_state.attendance_db.append(record_data)
+                            st.session_state.student_name = ""
+                            st.session_state.student_matrix = ""
+                            st.session_state.current_page = "Landing"
+                            st.rerun()
+        else:
+            st.info("Awaiting location authorization from browser...")
     else:
         st.warning("Attendance session is currently closed. Click 'Sync Class Session Status' when class starts.")
