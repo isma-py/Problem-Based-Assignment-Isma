@@ -117,7 +117,23 @@ st.markdown(
         color: #334155 !important;
     }
 
-    /* Action Grid Styling */
+    /* Actions Column: Tight Vertical Layout */
+    .action-btn-container {
+        display: flex;
+        flex-direction: column;
+        gap: 4px !important; /* Slight 4px gap between stacked buttons */
+        margin-top: -8px;
+    }
+    .action-btn-container .stButton {
+        margin-bottom: 0px !important;
+    }
+    .action-btn-container .stButton > button {
+        min-height: 32px !important;
+        padding: 4px 8px !important;
+        margin: 0 !important;
+    }
+
+    /* Action Grid Delete Styling */
     .action-btn-container-delete .stButton > button {
         background-color: #FEF2F2 !important;
         color: #DC2626 !important;
@@ -540,7 +556,6 @@ elif st.session_state.current_page == "LecturerDashboard":
         ],
     )
 
-    # Tight column proportions pack all 3 action buttons close to the left
     btn_col1, btn_col2, btn_col3, _ = st.columns([2.6, 2.0, 2.0, 3.4])
     with btn_col1:
         if st.button("Get Attendance (Activate Session)", type="primary"):
@@ -610,8 +625,10 @@ elif st.session_state.current_page == "LecturerDashboard":
             c_sub.write(rec.get("Subject", "-"))
             c_st.write(rec.get("Status", "-"))
 
-            # Stacked vertical actions
+            # Closely stacked vertical actions container
             with c_act:
+                st.markdown('<div class="action-btn-container">', unsafe_allow_html=True)
+                
                 if rec.get("image_bytes"):
                     if st.button("Photo", key=f"img_btn_{idx}", help="View Camera Photo"):
                         st.session_state.selected_image_record = rec
@@ -625,6 +642,8 @@ elif st.session_state.current_page == "LecturerDashboard":
                 st.markdown('<div class="action-btn-container-delete">', unsafe_allow_html=True)
                 if st.button("Delete", key=f"del_btn_{idx}", help="Remove Record"):
                     records_to_delete.append(idx)
+                st.markdown('</div>', unsafe_allow_html=True)
+                
                 st.markdown('</div>', unsafe_allow_html=True)
 
         if records_to_delete:
