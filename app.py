@@ -7,15 +7,25 @@ from streamlit_js_eval import get_geolocation
 import models
 
 # ==========================================
-# GLOBAL MODULE-LEVEL VARIABLES
+# THREAD-SAFE GLOBAL SHARED STATE (Cross-Session)
 # ==========================================
-if "GLOBAL_SESSION_ACTIVE" not in globals():
-    GLOBAL_SESSION_ACTIVE = False
-    GLOBAL_SUBJECT = ""
-    GLOBAL_LAB = ""
-    GLOBAL_LECTURER_LAT = None
-    GLOBAL_LECTURER_LON = None
-    GLOBAL_ATTENDANCE_DB = []
+class AttendanceSystemState:
+    """Class to share global state across ALL user sessions and tabs."""
+    def __init__(self):
+        self.session_active = False
+        self.subject = ""
+        self.lab = ""
+        self.lecturer_lat = None
+        self.lecturer_lon = None
+        self.attendance_db = []
+
+@st.cache_resource
+def get_global_system_state():
+    """Returns a single shared instance accessible by ALL users/tabs."""
+    return AttendanceSystemState()
+
+# Access the shared system memory
+global_state = get_global_system_state()
 
 # Maximum allowable physical distance between student and lecturer (in meters)
 MAX_ALLOWED_DISTANCE_METERS = 50.0
@@ -43,7 +53,7 @@ def colorize_attendance_row(row):
     else:
         return ['background-color: #f8d7da; color: #721c24'] * len(row)
 
-# Initialize session state variables
+# Initialize per-user session state variables
 if "current_page" not in st.session_state:
     st.session_state.current_page = "Landing"
 
@@ -177,22 +187,23 @@ elif st.session_state.current_page == "LecturerDashboard":
             if lec_lat is None or lec_lon is None:
                 st.error("Cannot activate session without GPS location. Please allow browser location access and try again.")
             else:
-                globals()["GLOBAL_SESSION_ACTIVE"] = True
-                globals()["GLOBAL_SUBJECT"] = lecturer_subject
-                globals()["GLOBAL_LAB"] = lecturer_lab
-                globals()["GLOBAL_LECTURER_LAT"] = lec_lat
-                globals()["GLOBAL_LECTURER_LON"] = lec_lon
+                # SAVE TO THE CACHED GLOBAL INSTANCE
+                global_state.session_active = True
+                global_state.subject = lecturer_subject
+                global_state.lab = lecturer_lab
+                global_state.lecturer_lat = lec_lat
+                global_state.lecturer_lon = lec_lon
                 st.success(f"Session activated for {lecturer_subject} at {lecturer_lab}. Physical boundary set within {MAX_ALLOWED_DISTANCE_METERS} meters.")
 
     st.markdown("---")
     st.subheader("Attendance Records")
     
-    if globals()["GLOBAL_ATTENDANCE_DB"]:
-        st.write(f"Total Subscriptions Logged: {len(globals()['GLOBAL_ATTENDANCE_DB'])}")
-        mc_count = sum(1 for item in globals()["GLOBAL_ATTENDANCE_DB"] if item.get("has_mc"))
+    if global_state.attendance_db:
+        st.write(f"Total Subscriptions Logged: {len(global_state.attendance_db)}")
+        mc_count = sum(1 for item in global_state.attendance_db if item.get("has_mc"))
         st.metric(label="Total Records with Medical Certificates / Memos", value=mc_count)
         
-        df_records = pd.DataFrame(globals()["GLOBAL_ATTENDANCE_DB"])
+        df_records = pd.DataFrame(global_state.attendance_db)
         styled_df = df_records[['Timestamp', 'Name', 'Matrix', 'Subject', 'Lab', 'Status', 'File Name']].style.apply(colorize_attendance_row, axis=1)
         
         st.dataframe(styled_df, height=450, use_container_width=True)
@@ -212,7 +223,7 @@ elif st.session_state.current_page == "StudentDashboard":
             st.session_state.current_page = "Landing"
             st.rerun()
     with col_ref:
-        if st.button("🔔 Check For Active Attendance Session"):
+        if st.button("🔄 Sync Class Session Status"):
             st.rerun()
 
     st.subheader("Student Location Verification")
@@ -232,12 +243,12 @@ elif st.session_state.current_page == "StudentDashboard":
 
     st.markdown("---")
 
-    # Evaluate session state
-    if globals()["GLOBAL_SESSION_ACTIVE"]:
-        st.success(f"📢 **ACTIVE SESSION DETECTED:** {globals()['GLOBAL_SUBJECT']} ({globals()['GLOBAL_LAB']})")
+    # Evaluate shared global state across sessions
+    if global_state.session_active:
+        st.success(f"📢 **ACTIVE SESSION DETECTED:** {global_state.subject} ({global_state.lab})")
         
-        lec_lat = globals()["GLOBAL_LECTURER_LAT"]
-        lec_lon = globals()["GLOBAL_LECTURER_LON"]
+        lec_lat = global_state.lecturer_lat
+        lec_lon = global_state.lecturer_lon
         
         if student_lat is None or student_lon is None:
             st.info("Awaiting student GPS authorization... Please ensure your device location is turned on and allowed in the browser.")
@@ -276,8 +287,8 @@ elif st.session_state.current_page == "StudentDashboard":
                                     "Timestamp": str(f"{attendance_date} {attendance_time}"),
                                     "Name": st.session_state.student_name,
                                     "Matrix": st.session_state.student_matrix,
-                                    "Subject": globals()["GLOBAL_SUBJECT"],
-                                    "Lab": globals()["GLOBAL_LAB"],
+                                    "Subject": global_state.subject,
+                                    "Lab": global_state.lab,
                                     "Status": attendance_status_type,
                                     "summary": f"Student: {st.session_state.student_name} | Matrix: {st.session_state.student_matrix} - Absent with No Evidence",
                                     "has_mc": False,
@@ -287,8 +298,8 @@ elif st.session_state.current_page == "StudentDashboard":
                                 record_obj = models.VerifiedAttendanceRecord(
                                     student_name=st.session_state.student_name,
                                     matrix_no=st.session_state.student_matrix,
-                                    lab_name=globals()["GLOBAL_LAB"],
-                                    subject_name=globals()["GLOBAL_SUBJECT"],
+                                    lab_name=global_state.lab,
+                                    subject_name=global_state.subject,
                                     has_mc=has_mc_flag,
                                     mc_reason=mc_reason_input if has_mc_flag else "None"
                                 )
@@ -297,14 +308,14 @@ elif st.session_state.current_page == "StudentDashboard":
                                     "Timestamp": str(f"{attendance_date} {attendance_time}"),
                                     "Name": st.session_state.student_name,
                                     "Matrix": st.session_state.student_matrix,
-                                    "Subject": globals()["GLOBAL_SUBJECT"],
-                                    "Lab": globals()["GLOBAL_LAB"],
+                                    "Subject": global_state.subject,
+                                    "Lab": global_state.lab,
                                     "Status": attendance_status_type,
                                     "summary": record_obj.process_record_summary(),
                                     "has_mc": has_mc_flag,
                                     "File Name": file_name_str
                                 }
-                                globals()["GLOBAL_ATTENDANCE_DB"].append(record_data)
+                                global_state.attendance_db.append(record_data)
                                 st.success("Attendance submitted and recorded into the database successfully.")
                                 
                         except ValueError as ve:
@@ -318,7 +329,7 @@ elif st.session_state.current_page == "StudentDashboard":
                     col_m1, col_m2 = st.columns(2)
                     with col_m1:
                         if st.button("Confirm Submit Without Evidence"):
-                            globals()["GLOBAL_ATTENDANCE_DB"].append(st.session_state.pending_attendance_data)
+                            global_state.attendance_db.append(st.session_state.pending_attendance_data)
                             st.session_state.show_absence_modal = False
                             st.session_state.pending_attendance_data = None
                             st.success("Absence recorded successfully without attached evidence.")
@@ -329,4 +340,4 @@ elif st.session_state.current_page == "StudentDashboard":
                             st.session_state.pending_attendance_data = None
                             st.rerun()
     else:
-        st.warning("⏳ Attendance session is currently closed. Click '🔔 Check For Active Attendance Session' above once your lecturer triggers the session.")
+        st.warning("⏳ Attendance session is currently closed. Click '🔄 Sync Class Session Status' above once your lecturer triggers the session.")
