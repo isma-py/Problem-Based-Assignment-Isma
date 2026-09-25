@@ -27,39 +27,24 @@ class AttendanceSystemState:
         self.lab = ""
         self.lecturer_lat = None
         self.lecturer_lon = None
-        self._attendance_db = []
-        self._submitted_students = set()
+        self.attendance_db = []
+        self.submitted_students = set()
 
-    @property
-    def submitted_students(self):
-        # Guarantee a set is returned even on legacy cached instances
-        if not hasattr(self, "_submitted_students") or not isinstance(
-            getattr(self, "_submitted_students", None), set
+    def get_submitted_students(self) -> set:
+        """Safe accessor method ensuring a valid set is returned regardless of caching state."""
+        if not hasattr(self, "submitted_students") or not isinstance(
+            self.submitted_students, set
         ):
-            self._submitted_students = set()
-        return self._submitted_students
+            self.submitted_students = set()
+        return self.submitted_students
 
-    @submitted_students.setter
-    def submitted_students(self, value):
-        if isinstance(value, set):
-            self._submitted_students = value
-        else:
-            self._submitted_students = set(value)
-
-    @property
-    def attendance_db(self):
-        if not hasattr(self, "_attendance_db") or not isinstance(
-            getattr(self, "_attendance_db", None), list
+    def get_attendance_db(self) -> list:
+        """Safe accessor method ensuring a valid list is returned regardless of caching state."""
+        if not hasattr(self, "attendance_db") or not isinstance(
+            self.attendance_db, list
         ):
-            self._attendance_db = []
-        return self._attendance_db
-
-    @attendance_db.setter
-    def attendance_db(self, value):
-        if isinstance(value, list):
-            self._attendance_db = value
-        else:
-            self._attendance_db = list(value)
+            self.attendance_db = []
+        return self.attendance_db
 
 
 @st.cache_resource
@@ -233,10 +218,10 @@ def confirm_absence_submission():
     with col_confirm:
         if st.button("Confirm & Submit Attendance"):
             if st.session_state.pending_attendance_record:
-                global_state.attendance_db.append(
+                global_state.get_attendance_db().append(
                     st.session_state.pending_attendance_record
                 )
-                global_state.submitted_students.add(
+                global_state.get_submitted_students().add(
                     st.session_state.student_matrix
                 )
 
@@ -373,7 +358,7 @@ elif st.session_state.current_page == "LecturerDashboard":
                 global_state.lab = lecturer_lab
                 global_state.lecturer_lat = lec_lat
                 global_state.lecturer_lon = lec_lon
-                global_state.submitted_students.clear()
+                global_state.get_submitted_students().clear()
                 st.success(
                     f"Session activated for {lecturer_subject} at"
                     f" {lecturer_lab}."
@@ -382,20 +367,16 @@ elif st.session_state.current_page == "LecturerDashboard":
     st.markdown("---")
     st.subheader("Live Attendance Records")
 
-    if global_state.attendance_db:
-        st.write(
-            "Total Submissions Logged:"
-            f" **{len(global_state.attendance_db)}**"
-        )
-        mc_count = sum(
-            1 for item in global_state.attendance_db if item.get("has_mc")
-        )
+    attendance_list = global_state.get_attendance_db()
+    if attendance_list:
+        st.write(f"Total Submissions Logged: **{len(attendance_list)}**")
+        mc_count = sum(1 for item in attendance_list if item.get("has_mc"))
         st.metric(
             label="Total Records with Medical Certificates / Memos",
             value=mc_count,
         )
 
-        df_records = pd.DataFrame(global_state.attendance_db)
+        df_records = pd.DataFrame(attendance_list)
         styled_df = df_records[[
             "Timestamp",
             "Name",
@@ -408,9 +389,7 @@ elif st.session_state.current_page == "LecturerDashboard":
         st.dataframe(styled_df, height=250, use_container_width=True)
 
         records_with_images = [
-            r
-            for r in global_state.attendance_db
-            if r.get("image_bytes") is not None
+            r for r in attendance_list if r.get("image_bytes") is not None
         ]
         if records_with_images:
             st.subheader("Submitted Evidence / Facial Captures")
@@ -433,7 +412,7 @@ elif st.session_state.current_page == "LecturerDashboard":
             st.session_state.lecturer_id,
             global_state.subject,
             global_state.lab,
-            global_state.attendance_db,
+            attendance_list,
         )
 
         st.download_button(
@@ -469,7 +448,10 @@ elif st.session_state.current_page == "StudentDashboard":
     st.markdown("---")
 
     if global_state.session_active:
-        if st.session_state.student_matrix in global_state.submitted_students:
+        if (
+            st.session_state.student_matrix
+            in global_state.get_submitted_students()
+        ):
             st.success(
                 "You have already submitted your attendance for this active"
                 " session."
@@ -604,8 +586,10 @@ elif st.session_state.current_page == "StudentDashboard":
                                 st.session_state.show_absence_modal = True
                                 st.rerun()
                             else:
-                                global_state.attendance_db.append(record_data)
-                                global_state.submitted_students.add(
+                                global_state.get_attendance_db().append(
+                                    record_data
+                                )
+                                global_state.get_submitted_students().add(
                                     st.session_state.student_matrix
                                 )
 
