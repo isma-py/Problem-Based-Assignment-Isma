@@ -196,7 +196,7 @@ elif st.session_state.current_page == "LecturerDashboard":
             st.session_state.current_page = "Landing"
             st.rerun()
     with col_l2:
-        if st.button("🔄 Refresh Attendance Table"):
+        if st.button("Refresh Attendance Table"):
             st.rerun()
         
     st.subheader("Classroom Location Verification")
@@ -247,7 +247,7 @@ elif st.session_state.current_page == "LecturerDashboard":
         )
         
         st.download_button(
-            label="📄 Download Attendance PDF Report",
+            label="Download Attendance PDF Report",
             data=pdf_bytes,
             file_name=f"Attendance_Report_{datetime.date.today()}.pdf",
             mime="application/pdf"
@@ -268,7 +268,7 @@ elif st.session_state.current_page == "StudentDashboard":
             st.session_state.current_page = "Landing"
             st.rerun()
     with col_ref:
-        if st.button("🔄 Sync Class Session Status"):
+        if st.button("Sync Class Session Status"):
             st.rerun()
 
     student_loc = get_geolocation()
@@ -280,7 +280,7 @@ elif st.session_state.current_page == "StudentDashboard":
     st.markdown("---")
 
     if global_state.session_active:
-        st.success(f"📢 **ACTIVE SESSION:** {global_state.subject} ({global_state.lab})")
+        st.success(f"ACTIVE SESSION: {global_state.subject} ({global_state.lab})")
         
         if student_lat is None or student_lon is None:
             st.info("Awaiting student GPS authorization...")
@@ -298,12 +298,28 @@ elif st.session_state.current_page == "StudentDashboard":
                     attendance_time = st.time_input("Select Time", value=datetime.datetime.now().time())
                     attendance_status_type = st.selectbox("Attendance Status", ["Present", "Absent with Medical Certificate / Memo"])
                     mc_reason_input = st.text_input("Reason (if applicable):")
-                    uploaded_file = st.file_uploader("Upload Medical Certificate", type=["pdf", "png", "jpg"])
+                    
+                    st.write("**Attach Evidence / Medical Certificate (if absent):**")
+                    
+                    # TABBED UI: Upload vs. Camera capture
+                    tab_upload, tab_camera = st.tabs(["Upload File (PDF/Image)", "Take Photo with Camera"])
+                    
+                    with tab_upload:
+                        uploaded_file = st.file_uploader("Upload Medical Certificate", type=["pdf", "png", "jpg"], key="mc_file_uploader")
+                    
+                    with tab_camera:
+                        camera_photo = st.camera_input("Take a photo of your Medical Certificate / Memo", key="mc_camera_input")
                     
                     submit_attempt_btn = st.form_submit_button("Submit Attendance Record")
                     
                     if submit_attempt_btn:
-                        file_name_str = uploaded_file.name if uploaded_file else "No File Attached"
+                        # Determine which evidence method was used
+                        file_name_str = "No File Attached"
+                        if uploaded_file is not None:
+                            file_name_str = uploaded_file.name
+                        elif camera_photo is not None:
+                            file_name_str = f"Camera_Snapshot_{st.session_state.student_matrix}.jpg"
+                            
                         has_mc_flag = (attendance_status_type == "Absent with Medical Certificate / Memo")
                         
                         record_data = {
@@ -319,4 +335,4 @@ elif st.session_state.current_page == "StudentDashboard":
                         global_state.attendance_db.append(record_data)
                         st.success("Attendance submitted successfully.")
     else:
-        st.warning("⏳ Attendance session is currently closed. Click '🔄 Sync Class Session Status' when class starts.")
+        st.warning("Attendance session is currently closed. Click 'Sync Class Session Status' when class starts.")
