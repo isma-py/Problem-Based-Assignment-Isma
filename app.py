@@ -263,6 +263,12 @@ if "show_absence_modal" not in st.session_state:
     st.session_state.show_absence_modal = False
 if "pending_attendance_record" not in st.session_state:
     st.session_state.pending_attendance_record = None
+if "show_image_viewer" not in st.session_state:
+    st.session_state.show_image_viewer = False
+if "show_doc_viewer" not in st.session_state:
+    st.session_state.show_doc_viewer = False
+if "active_file_record" not in st.session_state:
+    st.session_state.active_file_record = None
 
 
 # Dialog Modal
@@ -469,6 +475,51 @@ elif st.session_state.current_page == "LecturerDashboard":
             use_container_width=True,
             height=320
         )
+
+        st.markdown("---")
+        st.subheader("Student Submission File Viewer")
+        
+        record_options = {f"{r['Name']} ({r['Matrix']}) - {r['Timestamp']}": r for r in attendance_list}
+        selected_record_label = st.selectbox("Select Student Record to Inspect Files", list(record_options.keys()))
+        selected_record = record_options[selected_record_label]
+
+        col_img_btn, col_doc_btn = st.columns(2)
+        with col_img_btn:
+            if st.button("Show Image"):
+                st.session_state.show_image_viewer = True
+                st.session_state.show_doc_viewer = False
+                st.session_state.active_file_record = selected_record
+        with col_doc_btn:
+            if st.button("Show Document"):
+                st.session_state.show_doc_viewer = True
+                st.session_state.show_image_viewer = False
+                st.session_state.active_file_record = selected_record
+
+        if st.session_state.show_image_viewer and st.session_state.active_file_record == selected_record:
+            st.markdown("### Facial Verification Image")
+            img_bytes = selected_record.get("image_bytes")
+            if img_bytes:
+                st.image(img_bytes, caption=f"Captured Photo - {selected_record['Name']} ({selected_record['Matrix']})", width=350)
+            else:
+                st.info("No image captured for this record.")
+
+        if st.session_state.show_doc_viewer and st.session_state.active_file_record == selected_record:
+            st.markdown("### Attached Document / Medical Certificate")
+            doc_bytes = selected_record.get("doc_bytes")
+            doc_name = selected_record.get("doc_name")
+            doc_type = selected_record.get("doc_type")
+            if doc_bytes:
+                st.write(f"**File Name:** {doc_name}")
+                st.download_button(
+                    label=f"Download {doc_name}",
+                    data=doc_bytes,
+                    file_name=doc_name,
+                    mime=doc_type if doc_type else "application/octet-stream"
+                )
+                if doc_type and "image" in doc_type:
+                    st.image(doc_bytes, caption=doc_name, width=350)
+            else:
+                st.info("No document attached for this record.")
 
         st.markdown("---")
 
