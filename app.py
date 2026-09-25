@@ -24,7 +24,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-# Responsive CSS via Media Queries
+# Responsive & Compact CSS
 st.markdown(
     """
     <style>
@@ -79,15 +79,15 @@ st.markdown(
         color: #334155 !important;
     }
 
-    /* Fixed Height & Scrollable Table Container */
+    /* Fixed Height & Compact Scrollable Table Container */
     div[data-testid="stVerticalBlockBorderWrapper"]:has(.scrollable-marker) {
-        max-height: 380px !important;
+        max-height: 320px !important;
         overflow-y: auto !important;
-        padding-right: 8px !important;
+        padding-right: 4px !important;
         border: 1px solid #E2E8F0;
         border-radius: 8px;
         background-color: #FFFFFF;
-        padding: 12px !important;
+        padding: 8px 12px !important;
     }
 
     /* Custom Scrollbar Styling */
@@ -102,21 +102,29 @@ st.markdown(
         background: #CBD5E1;
         border-radius: 4px;
     }
-    div[data-testid="stVerticalBlockBorderWrapper"]:has(.scrollable-marker)::-webkit-scrollbar-thumb:hover {
-        background: #94A3B8;
+
+    /* Compact Data Table Cell Layout */
+    .compact-row {
+        display: flex;
+        align-items: center;
+        padding: 4px 0;
+        border-bottom: 1px solid #F1F5F9;
+        font-size: 0.85rem !important;
+        line-height: 1.2 !important;
     }
 
-    /* Fixed Standardized Action Buttons in Table */
+    /* Fixed Compact Action Buttons */
     .action-btn-wrap .stButton > button {
-        width: 70px !important;
-        min-width: 70px !important;
-        max-width: 70px !important;
-        height: 34px !important;
-        min-height: 34px !important;
-        font-size: 0.8rem !important;
-        padding: 2px 4px !important;
+        width: 58px !important;
+        min-width: 58px !important;
+        max-width: 58px !important;
+        height: 26px !important;
+        min-height: 26px !important;
+        font-size: 0.75rem !important;
+        padding: 0px 2px !important;
         margin: 0 !important;
-        border-radius: 6px !important;
+        border-radius: 4px !important;
+        line-height: 1 !important;
     }
 
     /* Delete Button Specific Styling */
@@ -145,7 +153,7 @@ st.markdown(
 
 
 # ==========================================
-# THREAD-SAFE GLOBAL SHARED STATE (Cross-Session)
+# THREAD-SAFE GLOBAL SHARED STATE
 # ==========================================
 @st.cache_resource
 def get_global_store():
@@ -576,50 +584,49 @@ elif st.session_state.current_page == "LecturerDashboard":
             value=mc_count,
         )
 
-        # 1. FIXED & SCROLLABLE ATTENDANCE RECORD DATAFRAME TABLE
+        # FIXED & SCROLLABLE ATTENDANCE RECORD TABLE
         df = pd.DataFrame(attendance_list)
         display_columns = ["Timestamp", "Name", "Matrix", "Class", "Subject", "Lab", "Status", "File Name"]
         existing_cols = [c for c in display_columns if c in df.columns]
         
-        # Render dataframe with fixed height so it scrolls vertically when populated with many rows
         st.dataframe(
             df[existing_cols],
             use_container_width=True,
-            height=280
+            height=260
         )
 
         st.markdown("### Verification Actions")
 
         records_to_delete = []
 
-        # Exact matching column proportions for perfect alignment
-        COL_RATIOS = [1.6, 1.2, 1.0, 0.9, 2.2, 1.6, 2.5]
+        # Tight Column Ratios to consolidate layout
+        COL_RATIOS = [1.5, 1.1, 0.8, 0.6, 2.2, 1.8, 2.0]
 
-        # Fixed Header Alignment Outside Scroll Area
+        # Compact Header Alignment
         h_ts, h_nm, h_mx, h_cl, h_sub, h_st, h_act = st.columns(COL_RATIOS)
-        h_ts.markdown("**Timestamp**")
-        h_nm.markdown("**Name**")
-        h_mx.markdown("**Matrix**")
-        h_cl.markdown("**Class**")
-        h_sub.markdown("**Subject**")
-        h_st.markdown("**Status**")
-        h_act.markdown("**Actions**")
-        st.markdown("<hr style='margin-top:2px; margin-bottom:8px;' />", unsafe_allow_html=True)
+        h_ts.caption("**Timestamp**")
+        h_nm.caption("**Name**")
+        h_mx.caption("**Matrix**")
+        h_cl.caption("**Class**")
+        h_sub.caption("**Subject**")
+        h_st.caption("**Status**")
+        h_act.caption("**Actions**")
+        st.markdown("<hr style='margin-top:0px; margin-bottom:4px; border-color:#CBD5E1;' />", unsafe_allow_html=True)
 
-        # 2. SCROLLABLE VERIFICATION ACTIONS CONTAINER
+        # COMPACT SCROLLABLE VERIFICATION ACTIONS CONTAINER
         with st.container(border=True):
             st.markdown('<div class="scrollable-marker"></div>', unsafe_allow_html=True)
             for idx, rec in enumerate(attendance_list):
                 c_ts, c_nm, c_mx, c_cl, c_sub, c_st, c_act = st.columns(COL_RATIOS)
 
-                c_ts.write(rec.get("Timestamp", "-"))
-                c_nm.write(f"**{rec.get('Name', '-')}**")
-                c_mx.write(rec.get("Matrix", "-"))
-                c_cl.write(rec.get("Class", "-"))
-                c_sub.write(rec.get("Subject", "-"))
-                c_st.write(rec.get("Status", "-"))
+                c_ts.markdown(f"<span style='font-size:0.8rem;'>{rec.get('Timestamp', '-')}</span>", unsafe_allow_html=True)
+                c_nm.markdown(f"<span style='font-size:0.8rem;'><b>{rec.get('Name', '-')}</b></span>", unsafe_allow_html=True)
+                c_mx.markdown(f"<span style='font-size:0.8rem;'>{rec.get('Matrix', '-')}</span>", unsafe_allow_html=True)
+                c_cl.markdown(f"<span style='font-size:0.8rem;'>{rec.get('Class', '-')}</span>", unsafe_allow_html=True)
+                c_sub.markdown(f"<span style='font-size:0.8rem;'>{rec.get('Subject', '-')}</span>", unsafe_allow_html=True)
+                c_st.markdown(f"<span style='font-size:0.8rem;'>{rec.get('Status', '-')}</span>", unsafe_allow_html=True)
 
-                # Uniform Button Sub-columns with Fixed Alignment
+                # Compact Button Row Alignment
                 with c_act:
                     act_col1, act_col2, act_col3 = st.columns([1, 1, 1])
                     
@@ -645,7 +652,7 @@ elif st.session_state.current_page == "LecturerDashboard":
                             records_to_delete.append(idx)
                         st.markdown('</div>', unsafe_allow_html=True)
 
-                st.markdown("<hr style='margin:4px 0;' />", unsafe_allow_html=True)
+                st.markdown("<hr style='margin:2px 0; border-color:#F1F5F9;' />", unsafe_allow_html=True)
 
         if records_to_delete:
             for d_idx in sorted(records_to_delete, reverse=True):
