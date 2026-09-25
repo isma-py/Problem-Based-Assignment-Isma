@@ -360,34 +360,24 @@ elif st.session_state.current_page == "StudentLogin":
 # PAGE 4: LECTURER DASHBOARD
 # ==========================================
 elif st.session_state.current_page == "LecturerDashboard":
-    st.title("Lecturer Control Dashboard")
+    st.title("Lecturer")
     st.write(
         f"Logged in Lecturer: {st.session_state.lecturer_name} (ID:"
         f" {st.session_state.lecturer_id})"
     )
 
-    col_l1, col_l2, col_l3 = st.columns([1, 2, 2])
-    with col_l1:
-        if st.button("Log Out"):
-            st.session_state.current_page = "Landing"
-            st.rerun()
-    with col_l2:
-        if st.button("Refresh Attendance Table"):
-            st.rerun()
-    with col_l3:
-        if global_store["session_active"]:
-            if st.button("Close Attendance Session", type="primary"):
-                global_store["session_active"] = False
-                st.success("Attendance session has been closed.")
-                st.rerun()
+    if st.button("Log Out"):
+        st.session_state.current_page = "Landing"
+        st.rerun()
 
-    st.subheader("Classroom Location Verification")
     loc = get_geolocation()
     lec_lat, lec_lon = None, None
     if loc and "coords" in loc:
         lec_lat, lec_lon = loc["coords"]["latitude"], loc["coords"]["longitude"]
+        st.subheader("Verified")
         st.success("Classroom location captured successfully.")
     else:
+        st.subheader("Checking Location")
         st.warning("Waiting for browser location authorization...")
 
     with st.form("lecturer_session_form"):
@@ -424,8 +414,20 @@ elif st.session_state.current_page == "LecturerDashboard":
                 )
                 st.rerun()
 
+    # Buttons placed under Get Attendance
+    col_b1, col_b2 = st.columns(2)
+    with col_b1:
+        if st.button("Refresh Attendance Table"):
+            st.rerun()
+    with col_b2:
+        if global_store["session_active"]:
+            if st.button("Close Attendance Session", type="primary"):
+                global_store["session_active"] = False
+                st.success("Attendance session has been closed.")
+                st.rerun()
+
     st.markdown("---")
-    st.subheader("Live Attendance Records")
+    st.subheader("Attendance Record")
 
     attendance_list = global_store["attendance_db"]
     if attendance_list:
@@ -451,7 +453,7 @@ elif st.session_state.current_page == "LecturerDashboard":
 
         st.markdown("**Record Actions & Evidence Viewers:**")
 
-        # Interactive Table Row Actions Grid (With Direct Delete Button)
+        # Interactive Table Row Actions Grid
         t_header = st.columns([1.5, 1.5, 1.2, 1.2, 1.5, 1.0])
         headers = [
             "Timestamp",
@@ -526,7 +528,7 @@ elif st.session_state.current_page == "LecturerDashboard":
 # PAGE 5: STUDENT DASHBOARD
 # ==========================================
 elif st.session_state.current_page == "StudentDashboard":
-    st.title("Student Attendance Portal")
+    st.title("Student")
     st.write(
         f"Logged in Student: **{st.session_state.student_name}** (Matrix:"
         f" **{st.session_state.student_matrix}**)"
