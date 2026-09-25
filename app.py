@@ -157,9 +157,14 @@ elif st.session_state.current_page == "LecturerDashboard":
     st.title("Lecturer Control Dashboard")
     st.write(f"Logged in Lecturer: {st.session_state.lecturer_name} (ID: {st.session_state.lecturer_id})")
     
-    if st.button("Log Out"):
-        st.session_state.current_page = "Landing"
-        st.rerun()
+    col_l1, col_l2 = st.columns([1, 4])
+    with col_l1:
+        if st.button("Log Out"):
+            st.session_state.current_page = "Landing"
+            st.rerun()
+    with col_l2:
+        if st.button("🔄 Refresh Attendance Table"):
+            st.rerun()
         
     st.subheader("Classroom Location Verification")
     st.info("Please allow browser location access so the system can set the classroom boundary for students.")
@@ -187,7 +192,6 @@ elif st.session_state.current_page == "LecturerDashboard":
             if lec_lat is None or lec_lon is None:
                 st.error("Cannot activate session without GPS location. Please allow browser location access and try again.")
             else:
-                # SAVE TO THE CACHED GLOBAL INSTANCE
                 global_state.session_active = True
                 global_state.subject = lecturer_subject
                 global_state.lab = lecturer_lab
@@ -196,19 +200,21 @@ elif st.session_state.current_page == "LecturerDashboard":
                 st.success(f"Session activated for {lecturer_subject} at {lecturer_lab}. Physical boundary set within {MAX_ALLOWED_DISTANCE_METERS} meters.")
 
     st.markdown("---")
-    st.subheader("Attendance Records")
+    st.subheader("Live Attendance Records")
     
+    # Render global database records live
     if global_state.attendance_db:
-        st.write(f"Total Subscriptions Logged: {len(global_state.attendance_db)}")
+        st.write(f"Total Submissions Logged: **{len(global_state.attendance_db)}**")
         mc_count = sum(1 for item in global_state.attendance_db if item.get("has_mc"))
         st.metric(label="Total Records with Medical Certificates / Memos", value=mc_count)
         
         df_records = pd.DataFrame(global_state.attendance_db)
-        styled_df = df_records[['Timestamp', 'Name', 'Matrix', 'Subject', 'Lab', 'Status', 'File Name']].style.apply(colorize_attendance_row, axis=1)
         
+        # Display styled dataframe table
+        styled_df = df_records[['Timestamp', 'Name', 'Matrix', 'Subject', 'Lab', 'Status', 'File Name']].style.apply(colorize_attendance_row, axis=1)
         st.dataframe(styled_df, height=450, use_container_width=True)
     else:
-        st.info("No attendance records found in the database for the current session.")
+        st.info("No attendance submissions logged yet. Click '🔄 Refresh Attendance Table' above when students submit.")
 
 # ==========================================
 # PAGE 5: STUDENT DASHBOARD
@@ -315,6 +321,7 @@ elif st.session_state.current_page == "StudentDashboard":
                                     "has_mc": has_mc_flag,
                                     "File Name": file_name_str
                                 }
+                                # Append to globally shared database instance
                                 global_state.attendance_db.append(record_data)
                                 st.success("Attendance submitted and recorded into the database successfully.")
                                 
@@ -323,7 +330,7 @@ elif st.session_state.current_page == "StudentDashboard":
                         except Exception as e:
                             st.error(f"An unexpected error occurred during processing: {e}")
                 
-                # Modal Warning implementation using Streamlit containers
+                # Modal Warning implementation
                 if st.session_state.show_absence_modal:
                     st.warning("Warning Modal Reminder: You did not upload a medical certificate or memo. If you proceed, this will be counted as absence with no evidence. You can still confirm submission below.")
                     col_m1, col_m2 = st.columns(2)
